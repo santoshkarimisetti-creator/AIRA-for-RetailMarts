@@ -16,7 +16,8 @@ from app.models import Product, SalesRecord, Alert
 STOPWORDS = {
     "what", "is", "the", "are", "of", "in", "to", "for", "on", "a", "an", "and", "or",
     "how", "much", "many", "tell", "me", "show", "give", "any", "all", "our", "my",
-    "item", "items", "product", "products", "available", "good", "fine"
+    "can", "you", "will", "would", "could", "should", "does", "did", "do", "has", "have", "had",
+    "item", "items", "product", "products", "available", "good", "fine", "see", "get"
 }
 
 QUERY_FILLERS = {
@@ -24,6 +25,7 @@ QUERY_FILLERS = {
     "rate", "units", "count", "available", "details", "status", "info",
     "low", "high", "top", "best", "fast", "most", "today", "yesterday",
     "overall", "total", "store", "sale", "sales", "business", "orders", "order",
+    "compare", "trend", "trends", "weekend", "festive", "festival", "month", "year", "week",
     "ఎంత", "ఉంది", "ఉన్నాయి", "చెప్పు", "ఎలా", "ఎన్ని", "ఏంటి", "డిమాండ్", "ధర", "సంగతి", "వివరాలు",
     "తక్కువ", "ఎక్కువ", "మొత్తం", "అమ్మకాలు", "సేల్స్", "స్టాక్", "లాభం", "మార్జిన్"
 }
@@ -349,7 +351,7 @@ class RuleBasedAssistantEngine:
         # 2. Extract meaningful product tokens (excluding question words & fillers)
         tokens = [
             t for t in re.findall(r'[a-zA-Z0-9]+', term_clean)
-            if len(t) >= 3 and t not in STOPWORDS and t not in QUERY_FILLERS
+            if ((len(t) >= 4) or (t in {'tea', 'dal', 'oil', 'egg', 'ghee', 'atta'})) and t not in STOPWORDS and t not in QUERY_FILLERS
         ]
 
         # Prioritize exact token match in product name or category
@@ -385,5 +387,47 @@ class RuleBasedAssistantEngine:
             "confidence": 100,
             "cards": cards
         }
+
+    def can_handle(self, query: str, db: Session) -> bool:
+        """
+        Determines whether the query can be directly and immediately answered
+        by the verified PostgreSQL rule assistant without invoking Ollama.
+        """
+        q = query.lower().strip()
+        all_products = db.query(Product).all()
+
+        # 1. Restock operation
+        if re.search(r'(?:restock|add|order)\s+\d+', q):
+            return True
+
+        # 2. Sale operation
+        if re.search(r'(?:sell|sold|billed)\s+\d+', q):
+            return True
+
+        # 3. Today\'s sales / revenue
+        if any(w in q for w in ["today", "ఈ రోజు", "ఈరోజు", "todays sales", "today sales", "ఈ రోజు sales"]):
+            return True
+
+        # 4. Low stock items / restocking
+        if any(w in q for w in ["low stock", "stock low", "out of stock", "reorder", "తక్కువ స్టాక్", "స్టాక్ తక్కువ", "need restock", "which products are low"]):
+            return True
+
+        # 5. Top selling products
+        if any(w in q for w in ["top selling", "best seller", "highest selling", "popular", "top products", "most sold", "ఎక్కువగా అమ్ముడవుతున్న"]):
+            return True
+
+        # 6. Highest profit / margin
+        if any(w in q for w in ["highest profit", "best margin", "profitable", "most profit", "ఎక్కువ లాభం", "ఎక్కువ మార్జిన్"]):
+            return True
+
+        # 7. Total all-time store sales
+        if any(w in q for w in ["total sales", "overall sales", "total revenue", "store sales", "మొత్తం అమ్మకాలు", "మొత్తం సేల్స్"]):
+            return True
+
+        # 8. Specific product search (e.g., rice, oil, sugar, tea, milk, dal, soap, biscuit)
+        if self._find_matching_product(query, all_products) is not None:
+            return True
+
+        return False
 
 rule_assistant = RuleBasedAssistantEngine()

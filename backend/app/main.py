@@ -5,7 +5,8 @@ Complete REST API backend with Swagger OpenAPI documentation, JWT auth, PostgreS
 
 import os
 from typing import List, Optional, Dict, Any
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
+import random
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -95,6 +96,10 @@ class CheckoutPayload(BaseModel):
     items: List[CheckoutItemSchema]
     payment_method: Optional[str] = "cash"
     customer_name: Optional[str] = "Walk-in Customer"
+    discount_percent: Optional[float] = 0.0
+    discount_amount: Optional[float] = 0.0
+    tax_amount: Optional[float] = 0.0
+    final_total: Optional[float] = 0.0
 
 class AuthSchema(BaseModel):
     email: str
@@ -285,10 +290,17 @@ def pos_checkout(payload: CheckoutPayload, db: Session = Depends(get_db)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="No items in checkout cart")
 
+    # Accurate Indian Standard Time (IST UTC+5:30)
+    now_ist = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    order_id = f"INV-{now_ist.strftime('%Y%m%d%H%M%S')}-{random.randint(100, 999)}"
+
     total_amount = 0.0
     total_units = 0
     updated_products = []
 
+    # Calculate raw cart total for proportional discount calculation
+    cart_raw_subtotal = 0.0
+    valid_items = []
     for item in payload.items:
         prod = db.query(Product).filter(Product.id == item.product_id).first()
         if not prod:
@@ -296,10 +308,13 @@ def pos_checkout(payload: CheckoutPayload, db: Session = Depends(get_db)):
         qty = max(1, item.quantity)
         if prod.stock < qty:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for {prod.name}. Only {prod.stock} left.")
+        raw_total = round(qty * prod.price, 2)
+        cart_raw_subtotal += raw_total
+        valid_items.append((prod, qty, raw_total))
 
+    for prod, qty, item_total in valid_items:
         prod.stock -= qty
         prod.units_sold = (prod.units_sold or 0) + qty
-        item_total = round(qty * prod.price, 2)
         prod.revenue = (prod.revenue or 0.0) + item_total
         prod.total_profit = (prod.total_profit or 0.0) + round(qty * (prod.unit_profit or 0.0), 2)
 
@@ -310,21 +325,40 @@ def pos_checkout(payload: CheckoutPayload, db: Session = Depends(get_db)):
         else:
             prod.status = "Healthy"
 
+        # Item-level proportional discount & 5% GST tax calculation
+        disc_pct = payload.discount_percent or 0.0
+        if disc_pct > 0:
+            item_disc = round(item_total * (disc_pct / 100.0), 2)
+        elif payload.discount_amount and cart_raw_subtotal > 0:
+            item_disc = round(payload.discount_amount * (item_total / cart_raw_subtotal), 2)
+        else:
+            item_disc = 0.0
+
+        item_taxable = max(0.0, item_total - item_disc)
+        item_tax = round(item_taxable * 0.05, 2)
+        item_final = round(item_taxable + item_tax, 2)
+
         sale = SalesRecord(
+            order_id=order_id,
             product_id=prod.id,
             units_sold=qty,
             price_per_unit=prod.price,
             total_amount=item_total,
-            sale_date=datetime.utcnow()
+            discount_percent=disc_pct,
+            discount_amount=item_disc,
+            tax_amount=item_tax,
+            final_amount=item_final,
+            sale_date=now_ist
         )
         db.add(sale)
-        total_amount += item_total
+        total_amount += item_final
         total_units += qty
         updated_products.append({"id": prod.id, "name": prod.name, "stock": prod.stock})
 
     db.commit()
     return {
         "status": "success",
+        "orderId": order_id,
         "message": f"Processed checkout for {total_units} items totaling ₹{total_amount:,.2f}",
         "totalAmount": round(total_amount, 2),
         "totalUnits": total_units,
@@ -561,42 +595,89 @@ def get_sales_history(
     if search and search.strip():
         term = f"%{search.strip()}%"
         query = query.filter(
-            (Product.name.ilike(term)) | (Product.sku.ilike(term)) | (Product.category.ilike(term))
+            (Product.name.ilike(term)) | (Product.sku.ilike(term)) | (Product.category.ilike(term)) | (SalesRecord.order_id.ilike(term))
         )
 
-    records = query.order_by(SalesRecord.sale_date.desc(), SalesRecord.id.desc()).limit(limit).all()
+    records = query.order_by(SalesRecord.sale_date.desc(), SalesRecord.id.desc()).limit(limit * 3).all()
 
-    items = []
-    total_revenue = 0.0
-    total_units = 0
-
+    # Group into single invoice/order objects
+    orders_map = {}
     for s, p in records:
-        dt_str = s.sale_date.strftime("%Y-%m-%d %I:%M %p") if s.sale_date else ""
+        oid = s.order_id or f"ORD-{s.sale_date.strftime('%Y%m%d') if s.sale_date else '20261031'}-{s.id:04d}"
+
+        # Indian Standard Time (IST) formatting
+        if s.sale_date:
+            if s.sale_date.tzinfo is None:
+                dt_ist = s.sale_date.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+            else:
+                dt_ist = s.sale_date.astimezone(timezone(timedelta(hours=5, minutes=30)))
+            date_display = dt_ist.strftime("%d %b %Y")
+            time_display = dt_ist.strftime("%I:%M %p")
+            full_datetime = f"{date_display}, {time_display}"
+        else:
+            date_display = "Today"
+            time_display = "12:00 PM"
+            full_datetime = "Today"
+
+        item_subtotal = round(s.units_sold * s.price_per_unit, 2)
+        item_disc = round(s.discount_amount or 0.0, 2)
+        item_tax = round(s.tax_amount or 0.0, 2)
+        item_final = round(s.final_amount or (item_subtotal - item_disc + item_tax), 2)
         unit_prof = round(p.price - p.cost_price, 2) if (p.price and p.cost_price) else (p.unit_profit or 0.0)
         tot_prof = round(s.units_sold * unit_prof, 2)
 
-        items.append({
+        line_item = {
             "id": s.id,
-            "orderId": f"TXN-{s.id:06d}",
-            "saleDate": dt_str,
             "productId": p.id,
             "productName": p.name,
             "sku": p.sku,
             "category": p.category,
+            "image": p.image,
             "unitsSold": s.units_sold,
             "pricePerUnit": s.price_per_unit,
-            "totalAmount": round(s.total_amount, 2),
-            "unitProfit": unit_prof,
+            "subtotal": item_subtotal,
+            "discount": item_disc,
+            "tax": item_tax,
+            "totalPrice": item_final,
             "totalProfit": tot_prof
-        })
-        total_revenue += s.total_amount
-        total_units += s.units_sold
+        }
+
+        if oid not in orders_map:
+            orders_map[oid] = {
+                "id": s.id,
+                "orderId": oid,
+                "saleDate": full_datetime,
+                "dateDisplay": date_display,
+                "timeDisplay": time_display,
+                "itemCount": 0,
+                "totalUnits": 0,
+                "subtotal": 0.0,
+                "discountAmount": 0.0,
+                "taxAmount": 0.0,
+                "totalAmount": 0.0,
+                "totalProfit": 0.0,
+                "paymentMethod": "Cash / UPI",
+                "items": []
+            }
+
+        orders_map[oid]["items"].append(line_item)
+        orders_map[oid]["itemCount"] += 1
+        orders_map[oid]["totalUnits"] += s.units_sold
+        orders_map[oid]["subtotal"] = round(orders_map[oid]["subtotal"] + item_subtotal, 2)
+        orders_map[oid]["discountAmount"] = round(orders_map[oid]["discountAmount"] + item_disc, 2)
+        orders_map[oid]["taxAmount"] = round(orders_map[oid]["taxAmount"] + item_tax, 2)
+        orders_map[oid]["totalAmount"] = round(orders_map[oid]["totalAmount"] + item_final, 2)
+        orders_map[oid]["totalProfit"] = round(orders_map[oid]["totalProfit"] + tot_prof, 2)
+
+    orders_list = list(orders_map.values())[:limit]
+    total_rev = sum(o["totalAmount"] for o in orders_list)
+    total_u = sum(o["totalUnits"] for o in orders_list)
 
     return {
-        "count": len(items),
-        "totalRevenue": round(total_revenue, 2),
-        "totalUnits": total_units,
-        "records": items
+        "count": len(orders_list),
+        "totalRevenue": round(total_rev, 2),
+        "totalUnits": total_u,
+        "records": orders_list
     }
 
 @app.get("/api/reports/summary")

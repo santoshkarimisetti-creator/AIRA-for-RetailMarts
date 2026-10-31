@@ -1,3 +1,4 @@
+import ProductImage from '../components/common/ProductImage'
 import { fetchProducts, checkoutPOS } from '../services/api'
 import React, { useState, useEffect, useRef } from 'react'
 import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
@@ -395,10 +396,16 @@ export default function POSCheckout() {
     }
 
     try {
-      // Call live PostgreSQL backend POS checkout
+      // Call live PostgreSQL backend POS checkout with order-level billing metadata
       await checkoutPOS(
         cart.map(it => ({ id: it.id, quantity: it.qty })),
-        paymentMode.toLowerCase()
+        paymentMode.toLowerCase(),
+        {
+          discountPercent: !isManualAmount ? Number(discountPercent || 0) : 0,
+          discountAmount: effectiveDiscountAmount,
+          taxAmount: gstAmount,
+          finalTotal: grandTotal
+        }
       )
     } catch (err) {
       console.warn('[POS] Backend checkout error, using local fallback:', err)
@@ -670,7 +677,7 @@ export default function POSCheckout() {
           {lastScannedProduct && (
             <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-900/10 via-blue-900/10 to-transparent border border-cyan-500/30 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <img src={lastScannedProduct.image} alt={lastScannedProduct.name} className="w-14 h-14 rounded-xl object-cover border border-slate-200 bg-white" />
+                <ProductImage src={lastScannedProduct.image} alt={lastScannedProduct.name} category={lastScannedProduct.category} className="w-14 h-14 rounded-xl border border-slate-200 bg-white" />
                 <div>
                   <span className="text-[10px] font-mono text-cyan-700 font-bold uppercase">{lastScannedProduct.sku} • {lastScannedProduct.category}</span>
                   <h4 className="text-sm font-extrabold text-slate-900">{lastScannedProduct.name}</h4>
@@ -736,7 +743,7 @@ export default function POSCheckout() {
                   className="p-2.5 sm:p-3 rounded-2xl bg-white hover:bg-cyan-50/50 border border-slate-200 hover:border-cyan-400 text-left transition-all flex flex-col justify-between group shadow-sm hover:shadow-md"
                 >
                   <div className="flex items-start space-x-2 sm:space-x-2.5">
-                    <img src={prod.image} alt={prod.name} className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50" />
+                    <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg shrink-0" />
                     <div className="min-w-0 flex-1">
                       <span className="text-[9px] font-mono text-slate-400 truncate block">{prod.sku}</span>
                       <h5 className="text-xs font-bold text-slate-900 truncate group-hover:text-cyan-700">{prod.name}</h5>
@@ -791,7 +798,7 @@ export default function POSCheckout() {
                   {cart.map((item) => (
                     <div key={item.id} className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-center justify-between text-xs">
                       <div className="flex items-center space-x-3 min-w-0 flex-1">
-                        <img src={item.image} alt={item.name} className="w-9 h-9 rounded-lg object-cover shrink-0 bg-white" />
+                        <ProductImage src={item.image} alt={item.name} category={item.category} className="w-9 h-9 rounded-lg shrink-0" />
                         <div className="min-w-0 flex-1">
                           <h5 className="font-bold text-slate-100 truncate">{item.name}</h5>
                           <span className="text-[10px] text-cyan-400 font-mono">₹{item.price} x {item.qty} = ₹{item.price * item.qty}</span>

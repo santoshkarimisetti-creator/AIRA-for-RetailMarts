@@ -1,3 +1,4 @@
+import ProductImage from './common/ProductImage'
 import { useState, useRef, useEffect } from 'react'
 import { 
   MessageSquare, X, Send, Mic, MicOff, Sparkles, Volume2, VolumeX, 
@@ -202,7 +203,15 @@ export default function FloatingAssistant() {
   // Real Local Audio Recording & faster-whisper Speech Recognition
   const startVoiceRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      })
       audioChunksRef.current = []
       const recorder = new MediaRecorder(stream)
 
@@ -639,7 +648,7 @@ export default function FloatingAssistant() {
                       {msg.cards.map((prod) => (
                         <div key={prod.id} className="p-3 rounded-xl bg-[#091524] border border-cyan-500/30 flex items-center justify-between text-xs text-white shadow-sm hover:border-cyan-400/60 transition-colors">
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <img src={prod.image} alt={prod.name} className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-700" />
+                            <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-9 h-9 rounded-lg shrink-0 border border-slate-700" />
                             <div className="min-w-0">
                               <h5 className="font-bold text-xs truncate">{prod.name}</h5>
                               <span className="text-[10px] text-rose-400 font-mono">

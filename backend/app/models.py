@@ -1,7 +1,12 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from app.database import Base
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_ist_now():
+    return datetime.now(IST)
 
 class User(Base):
     __tablename__ = "users"
@@ -12,7 +17,7 @@ class User(Base):
     store_name = Column(String, default="AIRA Mart & Superstore")
     owner_name = Column(String, default="Store Owner")
     role = Column(String, default="Store Manager (Admin)")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=get_ist_now)
 
 class Product(Base):
     __tablename__ = "products"
@@ -39,17 +44,22 @@ class Product(Base):
     advice_text = Column(Text, default="Restock units to meet demand surge.")
     order_recommendation = Column(Integer, default=30)
     confidence = Column(Integer, default=95)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=get_ist_now)
 
 class SalesRecord(Base):
     __tablename__ = "sales_records"
 
     id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(String(64), index=True, nullable=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     units_sold = Column(Integer, nullable=False)
     price_per_unit = Column(Float, nullable=False)
     total_amount = Column(Float, nullable=False)
-    sale_date = Column(DateTime, default=datetime.utcnow)
+    discount_percent = Column(Float, default=0.0)
+    discount_amount = Column(Float, default=0.0)
+    tax_amount = Column(Float, default=0.0)
+    final_amount = Column(Float, default=0.0)
+    sale_date = Column(DateTime, default=get_ist_now)
 
     product = relationship("Product")
 
@@ -63,4 +73,4 @@ class Alert(Base):
     priority = Column(String, default="High Priority")
     time = Column(String, default="Just now")
     is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=get_ist_now)

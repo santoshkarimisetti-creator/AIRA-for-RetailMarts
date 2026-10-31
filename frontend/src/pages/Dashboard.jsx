@@ -1,3 +1,4 @@
+import ProductImage from '../components/common/ProductImage'
 import { fetchDashboardStats, fetchSalesAnalytics, fetchProducts, sellProduct, createProduct } from '../services/api'
 import React, { useState, useEffect } from 'react'
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode'
@@ -1041,7 +1042,7 @@ export default function Dashboard() {
                       <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center shrink-0">
                         {item.rank}
                       </span>
-                      <img src={item.image} alt={item.name} className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-200" />
+                      <ProductImage src={item.image} alt={item.name} category={item.category} className="w-9 h-9 rounded-lg shrink-0 border border-slate-200" />
                       <div className="min-w-0 flex-1">
                         <h5 className="text-xs font-bold text-slate-900 truncate">{item.name}</h5>
                         <span className="text-[10px] text-slate-500 truncate block">{item.category} • {item.sold}</span>

@@ -186,6 +186,27 @@ class LocalOllamaAssistant:
         """
         is_telugu = (language.startswith("te") or bool(re.search(r'[\u0C00-\u0C7F]', prompt)))
 
+        # Priority Check: If query exists in rule-based assistant, answer directly from PostgreSQL without invoking Ollama!
+        if rule_assistant.can_handle(prompt, db):
+            logger.info("Query matched Rule-Based pattern. Answering directly from PostgreSQL instantly.")
+            base_result = rule_assistant.execute_and_reply(
+                query=prompt,
+                db=db,
+                store_name=store_name,
+                currency="₹",
+                language="te-IN" if is_telugu else "en-IN"
+            )
+            db_reply = base_result.get("reply", base_result.get("response", ""))
+            return {
+                "reply": db_reply,
+                "response": db_reply,
+                "speech_text": base_result.get("speech_text", self._clean_speech_text(db_reply)),
+                "model": "AIRA Instant Rule Assistant",
+                "engine": "PostgreSQL Rule Engine",
+                "cards": base_result.get("cards", []),
+                "language": "te-IN" if is_telugu else "en-IN"
+            }
+
         # Check if Ollama is running and has models
         if self.is_ollama_available():
             available = self.get_available_models()

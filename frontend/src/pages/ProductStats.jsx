@@ -1,3 +1,4 @@
+import ProductImage from '../components/common/ProductImage'
 import { fetchProducts } from '../services/api'
 import { useEffect } from 'react'
 import React, { useState } from 'react'
@@ -328,7 +329,7 @@ export default function ProductStats() {
                   {/* Product Info */}
                   <td className="p-3">
                     <div className="flex items-center space-x-3">
-                      <img src={p.image} alt={p.name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
+                      <ProductImage src={p.image} alt={p.name} category={p.category} className="w-10 h-10 rounded-xl shrink-0 border border-slate-200" />
                       <div>
                         <div className="font-bold text-slate-900">{p.name}</div>
                         <div className="text-[10px] font-mono text-slate-400">{p.sku}</div>

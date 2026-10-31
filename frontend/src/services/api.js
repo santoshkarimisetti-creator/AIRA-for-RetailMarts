@@ -83,13 +83,17 @@ export const sellProduct = async (productId, quantity = 1) => {
 }
 
 // POS Checkout
-export const checkoutPOS = async (items, paymentMethod = 'cash') => {
+export const checkoutPOS = async (items, paymentMethod = 'cash', billingMeta = {}) => {
   const payload = {
     items: items.map(it => ({
       product_id: it.id,
       quantity: Number(it.quantity || 1)
     })),
-    payment_method: paymentMethod
+    payment_method: paymentMethod,
+    discount_percent: billingMeta.discountPercent || 0,
+    discount_amount: billingMeta.discountAmount || 0,
+    tax_amount: billingMeta.taxAmount || 0,
+    final_total: billingMeta.finalTotal || 0
   }
   const res = await client.post('/pos/checkout', payload)
   return res.data

@@ -1,3 +1,4 @@
+import ProductImage from '../components/common/ProductImage'
 import { fetchProducts, restockProduct, sellProduct, createProduct, updateProduct, deleteProduct } from '../services/api'
 import React, { useState, useEffect } from 'react'
 import { products as initialProducts } from '../utils/demoData'
@@ -496,7 +497,7 @@ export default function Inventory() {
               <div key={prod.id} className="p-5 rounded-2xl card-light-interactive flex flex-col justify-between">
                 <div>
                   <div className="flex items-start space-x-4 mb-3">
-                    <img src={prod.image} alt={prod.name} className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0 bg-slate-100" />
+                    <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-16 h-16 rounded-xl border border-slate-200 shrink-0 bg-slate-100" />
                     <div className="flex-1 min-w-0">
                       <span className="text-[10px] font-mono text-slate-400 uppercase">{prod.sku} • {prod.category}</span>
                       <h3 className="text-sm font-bold text-slate-900 truncate">{prod.name}</h3>

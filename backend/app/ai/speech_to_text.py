@@ -102,13 +102,16 @@ class LocalSpeechToTextEngine:
             else:
                 target_path = audio_input
 
-            # Run transcription with automatic language detection
+            # Run transcription with automatic language detection, domain priming and noise rejection
             segments, info = model.transcribe(
                 target_path,
                 beam_size=5,
                 language=language,
-                vad_filter=True, # Voice Activity Detection filters out silence
-                vad_parameters=dict(min_silence_duration_ms=500)
+                temperature=0.0,
+                condition_on_previous_text=False,
+                initial_prompt="AIRA retail supermarket store sales billing stock inventory price Telugu English డిమాండ్ అమ్మకాలు బియ్యం నూనె",
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=400, threshold=0.4)
             )
 
             transcribed_segments = []
