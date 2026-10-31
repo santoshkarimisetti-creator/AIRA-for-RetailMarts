@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import { fetchProducts, restockProduct, sellProduct, createProduct, updateProduct, deleteProduct } from '../services/api'
+import React, { useState, useEffect } from 'react'
 import { products as initialProducts } from '../utils/demoData'
 import { getUserProducts, saveUserProducts, isDemoUser } from '../utils/userStore'
 import { 
@@ -30,6 +31,16 @@ import {
 import { Link } from 'react-router-dom'
 
 export default function Inventory() {
+
+  // Load live products from PostgreSQL
+  useEffect(() => {
+    fetchProducts().then(prods => {
+      if (prods && prods.length > 0) {
+        setProductList(prods)
+      }
+    }).catch(err => console.warn('[Inventory] Using local fallback:', err))
+  }, [])
+
   const [productList, setProductList] = useState(() => getUserProducts())
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -108,14 +119,23 @@ export default function Inventory() {
   })
 
   // Restock Option 1: Preset Restock
-  const handlePresetRestock = (id, amount = 30) => {
+  const handlePresetRestock = async (id, amount = 30) => {
+    try {
+      const res = await restockProduct(id, amount)
+      if (res && res.product) {
+        setProductList(prev => prev.map(p => p.id === id ? { ...p, ...res.product } : p))
+        return
+      }
+    } catch (e) {
+      console.warn('[Restock] Backend API error, using local state:', e)
+    }
     const updated = productList.map(p => {
       if (p.id === id) {
         const updatedStock = p.stock + amount
         return {
           ...p,
           stock: updatedStock,
-          status: updatedStock > p.minStock ? 'Healthy' : 'Low Stock'
+          status: updatedStock > (p.minStock || p.min_stock || 15) ? 'Healthy' : 'Low Stock'
         }
       }
       return p
@@ -124,9 +144,20 @@ export default function Inventory() {
   }
 
   // Restock Option 2: Custom Restock Quantity
-  const handleCustomRestock = (id) => {
+  const handleCustomRestock = async (id) => {
     const qty = Number(customQuantities[id] || 0)
     if (qty <= 0) return
+
+    try {
+      const res = await restockProduct(id, qty)
+      if (res && res.product) {
+        setProductList(prev => prev.map(p => p.id === id ? { ...p, ...res.product } : p))
+        setCustomQuantities(prev => ({ ...prev, [id]: '' }))
+        return
+      }
+    } catch (e) {
+      console.warn('[Restock] Backend API error, using local fallback:', e)
+    }
 
     const updated = productList.map(p => {
       if (p.id === id) {
@@ -134,14 +165,14 @@ export default function Inventory() {
         return {
           ...p,
           stock: updatedStock,
-          status: updatedStock > p.minStock ? 'Healthy' : 'Low Stock'
+          status: updatedStock > (p.minStock || p.min_stock || 15) ? 'Healthy' : 'Low Stock'
         }
       }
       return p
     })
 
     updateAndSaveProducts(updated)
-    setCustomQuantities({ ...customQuantities, [id]: '' })
+    setCustomQuantities(prev => ({ ...prev, [id]: '' }))
   }
 
   // LOG SALE / SELL UNITS CONTROL
@@ -172,9 +203,20 @@ export default function Inventory() {
     }
   }
 
-  const handleSellUnits = (id) => {
+  const handleSellUnits = async (id) => {
     const qtyToSell = getParsedSellQty(id)
     if (qtyToSell <= 0) return
+
+    try {
+      const res = await sellProduct(id, qtyToSell)
+      if (res && res.product) {
+        setProductList(prev => prev.map(p => p.id === id ? { ...p, ...res.product } : p))
+        setSellQuantities(prev => ({ ...prev, [id]: '1' }))
+        return
+      }
+    } catch (e) {
+      console.warn('[Sell] Backend API error, using local fallback:', e)
+    }
 
     const updated = productList.map(p => {
       if (p.id === id) {

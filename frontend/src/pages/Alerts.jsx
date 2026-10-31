@@ -1,7 +1,28 @@
+import { fetchAlerts, markAlertAsRead } from '../services/api'
+import { useEffect } from 'react'
 import React, { useState } from 'react'
 import { AlertTriangle, TrendingUp, Info, CheckCircle2, X } from 'lucide-react'
 
 export default function Alerts() {
+
+  // Load real alerts from PostgreSQL
+  useEffect(() => {
+    fetchAlerts().then(dbAlerts => {
+      if (dbAlerts && dbAlerts.length > 0) {
+        const mapped = dbAlerts.map(a => ({
+          id: a.id,
+          type: a.type || 'warning',
+          icon: a.type === 'critical' ? AlertTriangle : (a.type === 'opportunity' ? TrendingUp : Info),
+          color: a.type === 'critical' ? 'text-rose-500 bg-rose-50 border-rose-200' : (a.type === 'opportunity' ? 'text-emerald-500 bg-emerald-50 border-emerald-200' : 'text-amber-500 bg-amber-50 border-amber-200'),
+          title: a.title,
+          desc: a.desc,
+          time: a.time || 'Just now'
+        }))
+        setAlertList(mapped)
+      }
+    }).catch(() => {})
+  }, [])
+
   const [alertList, setAlertList] = useState([
     { id: 1, type: 'critical', icon: AlertTriangle, color: 'text-rose-500 bg-rose-50 border-rose-200', title: 'Rice & Cooking Oil Stock Alert', desc: 'Fortune Sunflower Oil is below minimum threshold (4 units remaining). Expected stockout in 2 days.', time: '10 mins ago' },
     { id: 2, type: 'warning', icon: AlertTriangle, color: 'text-amber-500 bg-amber-50 border-amber-200', title: 'Amul Milk Low Stock Warning', desc: 'Amul Taaza Milk has 12 units remaining. Reorder recommendation: 55 units.', time: '1 hour ago' },
@@ -10,6 +31,7 @@ export default function Alerts() {
   ])
 
   const dismissAlert = (id) => {
+    markAlertAsRead(id).catch(() => {})
     setAlertList(alertList.filter(a => a.id !== id))
   }
 

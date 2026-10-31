@@ -5,7 +5,7 @@ import {
   Database, Save, CheckCircle2, Sparkles, ExternalLink, Key, Volume2,
   Languages, Check
 } from 'lucide-react'
-import { getGeminiConfig, saveGeminiConfig, SUPPORTED_LANGUAGES } from '../services/geminiService'
+import { getAIRAConfig, saveAIRAConfig, SUPPORTED_LANGUAGES } from '../services/geminiService'
 import { useLanguage } from '../context/LanguageContext'
 
 export default function Settings() {
@@ -13,7 +13,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('language')
   const { language, setLanguage, languages, t } = useLanguage()
 
-  const initialGemini = getGeminiConfig()
+  const initialAIRA = getAIRAConfig()
 
   const [settings, setSettings] = useState({
     storeName: storeInfo.name,
@@ -24,11 +24,11 @@ export default function Settings() {
     role: 'Store Manager (Admin)',
     // Language & Voice
     appLanguage: language,
-    geminiApiKey: initialGemini.apiKey,
-    geminiModel: initialGemini.model || 'gemini-2.5-flash',
-    voiceEnabled: initialGemini.voiceEnabled,
-    voiceLanguage: initialGemini.voiceLanguage || 'en-IN',
-    speechRate: initialGemini.speechRate || 1.0
+    assistantApiKey: initialAIRA.apiKey,
+    assistantModel: initialAIRA.model || 'aira-database-engine',
+    voiceEnabled: initialAIRA.voiceEnabled,
+    voiceLanguage: initialAIRA.voiceLanguage || 'en-IN',
+    speechRate: initialAIRA.speechRate || 1.0
   })
 
   const handleSave = (e) => {
@@ -39,10 +39,10 @@ export default function Settings() {
       setLanguage(settings.appLanguage)
     }
 
-    // Save Gemini Config
-    saveGeminiConfig({
-      apiKey: settings.geminiApiKey.trim(),
-      model: settings.geminiModel,
+    // Save AIRA Config
+    saveAIRAConfig({
+      apiKey: settings.assistantApiKey.trim(),
+      model: settings.assistantModel,
       voiceEnabled: settings.voiceEnabled,
       voiceLanguage: settings.voiceLanguage,
       speechRate: settings.speechRate
@@ -59,7 +59,7 @@ export default function Settings() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center space-x-2">
             <span>{t('nav.settings', 'System Settings & Configuration')}</span>
           </h1>
-          <p className="text-xs text-slate-500">Manage Indian language preferences, store profiles, Google Gemini Voice Assistant, and stock alert thresholds.</p>
+          <p className="text-xs text-slate-500">Manage Indian language preferences, store profiles, Google AIRA Voice Assistant, and stock alert thresholds.</p>
         </div>
 
         {saved && (
@@ -77,7 +77,7 @@ export default function Settings() {
             { id: 'language', label: 'Indian Languages (भाषा)', icon: Languages },
             { id: 'store', label: 'Store Information', icon: Store },
             { id: 'inventory', label: 'Inventory & Alerts', icon: Database },
-            { id: 'ai', label: 'Google Gemini & Voice', icon: Sparkles },
+            { id: 'ai', label: 'AIRA AI & Voice', icon: Sparkles },
             { id: 'security', label: 'Security & Roles', icon: Shield },
           ].map(tab => (
             <button
@@ -196,9 +196,9 @@ export default function Settings() {
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-1.5">
                       <Sparkles className="w-4 h-4 text-cyan-600" />
-                      <span>Google Gemini Voice Assistant Configuration</span>
+                      <span>Google AIRA Voice Assistant Configuration</span>
                     </h3>
-                    <p className="text-[11px] text-slate-500">Configure cloud Gemini intelligence, speech synthesis, and voice recognition.</p>
+                    <p className="text-[11px] text-slate-500">Configure cloud AIRA intelligence, speech synthesis, and voice recognition.</p>
                   </div>
                   <a 
                     href="https://aistudio.google.com/app/apikey" 
@@ -206,42 +206,42 @@ export default function Settings() {
                     rel="noreferrer"
                     className="text-blue-600 hover:underline flex items-center space-x-1 font-semibold text-xs"
                   >
-                    <span>Get Free Gemini Key</span>
+                    <span>Get Free AIRA Key</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
 
-                {/* Gemini API Key */}
+                {/* AIRA API Key */}
                 <div>
                   <label className="block text-slate-700 font-medium mb-1">
-                    Google Gemini API Key
+                    Open-Source LLM Endpoint / Key
                   </label>
                   <div className="relative">
                     <input 
                       type="password" 
-                      value={settings.geminiApiKey} 
-                      onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })} 
+                      value={settings.assistantApiKey} 
+                      onChange={(e) => setSettings({ ...settings, assistantApiKey: e.target.value })} 
                       placeholder="AIzaSy... (leave blank to run in local offline intelligence mode)" 
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs placeholder:font-sans" 
                     />
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Your key is stored securely in your browser/backend environment and used exclusively to communicate with Google Gemini.
+                    Your key is stored securely in your browser/backend environment and used exclusively to communicate with AIRA AI.
                   </p>
                 </div>
 
                 {/* Model Selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-700 font-medium mb-1">Active Gemini Model</label>
+                    <label className="block text-slate-700 font-medium mb-1">Active AI Assistant Engine</label>
                     <select 
-                      value={settings.geminiModel} 
-                      onChange={(e) => setSettings({ ...settings, geminiModel: e.target.value })} 
+                      value={settings.assistantModel} 
+                      onChange={(e) => setSettings({ ...settings, assistantModel: e.target.value })} 
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
                     >
-                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended - Fastest)</option>
-                      <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
+                      <option value="aira-database-engine">AIRA 2.5 Flash (Recommended - Fastest)</option>
+                      <option value="aira-database-engine-lite">AIRA 2.5 Flash-Lite</option>
+                      <option value="aira-pro">AIRA 2.5 Pro (Deep Reasoning)</option>
                     </select>
                   </div>
 
@@ -269,7 +269,7 @@ export default function Settings() {
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-900 text-xs">Voice Output (Text-to-Speech)</h4>
-                      <p className="text-[11px] text-slate-500">Automatically read aloud Gemini assistant responses through your speakers.</p>
+                      <p className="text-[11px] text-slate-500">Automatically read aloud AIRA assistant responses through your speakers.</p>
                     </div>
                   </div>
 

@@ -1,3 +1,5 @@
+import { fetchProducts } from '../services/api'
+import { useEffect } from 'react'
 import React, { useState } from 'react'
 import { products as initialProducts } from '../utils/demoData'
 import { getUserProducts, saveUserProducts } from '../utils/userStore'
@@ -19,6 +21,13 @@ import {
 
 export default function ProductStats() {
   const [productList, setProductList] = useState(() => getUserProducts())
+
+  useEffect(() => {
+    fetchProducts().then(prods => {
+      if (prods && prods.length > 0) setProductList(prods)
+    }).catch(() => {})
+  }, [])
+
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [sortBy, setSortBy] = useState('profit-high')
@@ -38,14 +47,14 @@ export default function ProductStats() {
 
   // Calculate product financial metrics
   const processedProducts = productList.map(p => {
-    const cost = p.costPrice !== undefined ? p.costPrice : Math.round(p.price * 0.75)
-    const price = p.price || 0
-    const unitProfit = p.unitProfit !== undefined ? p.unitProfit : (price - cost)
-    const unitsSold = p.unitsSold || 0
-    const totalRevenue = p.revenue !== undefined ? p.revenue : (unitsSold * price)
-    const totalProfit = p.totalProfit !== undefined ? p.totalProfit : (unitsSold * unitProfit)
-    const margin = p.margin !== undefined ? p.margin : (price > 0 ? Number(((unitProfit / price) * 100).toFixed(1)) : 0)
-    const roi = p.roi !== undefined ? p.roi : (cost > 0 ? Number(((unitProfit / cost) * 100).toFixed(1)) : 0)
+    const price = Number(p.price) || 0
+    const cost = Number(p.costPrice !== undefined && p.costPrice !== null ? p.costPrice : (p.cost_price !== undefined && p.cost_price !== null ? p.cost_price : Math.round(price * 0.75)))
+    const unitProfit = Number(p.unitProfit !== undefined && p.unitProfit !== null ? p.unitProfit : (p.unit_profit !== undefined && p.unit_profit !== null ? p.unit_profit : (price - cost)))
+    const unitsSold = Number(p.unitsSold !== undefined && p.unitsSold !== null ? p.unitsSold : (p.units_sold !== undefined && p.units_sold !== null ? p.units_sold : 0))
+    const totalRevenue = Number(p.revenue !== undefined && p.revenue !== null ? p.revenue : (unitsSold * price))
+    const totalProfit = Number(p.totalProfit !== undefined && p.totalProfit !== null ? p.totalProfit : (p.total_profit !== undefined && p.total_profit !== null ? p.total_profit : (unitsSold * unitProfit)))
+    const margin = price > 0 ? Number(((unitProfit / price) * 100).toFixed(1)) : 0
+    const roi = cost > 0 ? Number(((unitProfit / cost) * 100).toFixed(1)) : 0
 
     let ratingBadge = { label: 'Steady Profit', color: 'bg-blue-100 text-blue-700 border-blue-200' }
     if (totalProfit > 50000) {

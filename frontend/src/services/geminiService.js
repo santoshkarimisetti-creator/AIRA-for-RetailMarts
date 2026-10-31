@@ -1,5 +1,5 @@
 /**
- * AIRA Gemini Multilingual Voice Assistant Client Service
+ * AIRA Multilingual Voice Assistant Client Service
  * Coordinates Multilingual Speech Recognition (STT), Speech Synthesis (TTS),
  * and Gemini 2.5 LLM interactions with retail telemetry.
  */
@@ -15,7 +15,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'English (India)', 
     nativeName: 'English (India)', 
     flag: '🇮🇳',
-    placeholder: "Ask Gemini: 'What should I reorder?'...",
+    placeholder: "Ask AIRA: 'What should I reorder?'...",
     examples: [
       "How were my sales today?",
       "Which products are low in stock?",
@@ -29,7 +29,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Hindi', 
     nativeName: 'हिन्दी', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini से पूछें: 'आज की बिक्री कैसी रही?'...",
+    placeholder: "AIRA AI से पूछें: 'आज की बिक्री कैसी रही?'...",
     examples: [
       "आज की बिक्री कैसी रही?",
       "कौन से उत्पाद कम स्टॉक में हैं?",
@@ -43,7 +43,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Tamil', 
     nativeName: 'தமிழ்', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini-யிடம் கேட்கவும்: 'இன்றைய விற்பனை எப்படி?'...",
+    placeholder: "AIRA AI-யிடம் கேட்கவும்: 'இன்றைய விற்பனை எப்படி?'...",
     examples: [
       "இன்றைய விற்பனை எப்படி இருந்தது?",
       "எந்த பொருட்கள் குறைந்த இருப்பில் உள்ளன?",
@@ -57,7 +57,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Telugu', 
     nativeName: 'తెలుగు', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini ని అడగండి: 'ఈరోజు అమ్మకాలు ఎలా ఉన్నాయి?'...",
+    placeholder: "AIRA AI ని అడగండి: 'ఈరోజు అమ్మకాలు ఎలా ఉన్నాయి?'...",
     examples: [
       "ఈరోజు నా అమ్మకాలు ఎలా ఉన్నాయి?",
       "ఏ ఉత్పత్తులు తక్కువ స్టాక్‌లో ఉన్నాయి?",
@@ -71,7 +71,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Kannada', 
     nativeName: 'ಕನ್ನಡ', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini ಯನ್ನು ಕೇಳಿ: 'ಇಂದು ನನ್ನ ಮಾರಾಟ ಹೇಗಿತ್ತು?'...",
+    placeholder: "AIRA AI ಯನ್ನು ಕೇಳಿ: 'ಇಂದು ನನ್ನ ಮಾರಾಟ ಹೇಗಿತ್ತು?'...",
     examples: [
       "ಇಂದು ನನ್ನ ಮಾರಾಟ ಹೇಗಿತ್ತು?",
       "ಯಾವ ಉತ್ಪನ್ನಗಳು ಕಡಿಮೆ ಸ್ಟಾಕ್‌ನಲ್ಲಿವೆ?",
@@ -85,7 +85,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Bengali', 
     nativeName: 'বাংলা', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini-কে জিজ্ঞাসা করুন: 'আজকের বিক্রি কেমন?'...",
+    placeholder: "AIRA AI-কে জিজ্ঞাসা করুন: 'আজকের বিক্রি কেমন?'...",
     examples: [
       "আজকের বিক্রি কেমন ছিল?",
       "কোন পণ্যগুলোর স্টক কম আছে?",
@@ -99,7 +99,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Marathi', 
     nativeName: 'मराठी', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini ला विचारा: 'आजची विक्री कशी झाली?'...",
+    placeholder: "AIRA AI ला विचारा: 'आजची विक्री कशी झाली?'...",
     examples: [
       "आजची विक्री कशी झाली?",
       "कोणत्या वस्तूंचा साठा कमी आहे?",
@@ -113,7 +113,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Gujarati', 
     nativeName: 'ગુજરાતી', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini ને પૂછો: 'આજનું વેચાણ કેવું રહ્યું?'...",
+    placeholder: "AIRA AI ને પૂછો: 'આજનું વેચાણ કેવું રહ્યું?'...",
     examples: [
       "આજે મારું વેચાણ કેવું રહ્યું?",
       "કયા ઉત્પાદનોનો સ્ટોક ઓછો છે?",
@@ -127,7 +127,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Malayalam', 
     nativeName: 'മലയാളം', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini-യോട് ചോദിക്കുക: 'ഇന്നത്തെ വിൽപ്പന എങ്ങനെ?'...",
+    placeholder: "AIRA AI-യോട് ചോദിക്കുക: 'ഇന്നത്തെ വിൽപ്പന എങ്ങനെ?'...",
     examples: [
       "ഇന്നത്തെ വിൽപ്പന എങ്ങനെയുണ്ടായിരുന്നു?",
       "ഏതൊക്കെ ഉൽപ്പന്നങ്ങൾക്കാണ് സ്റ്റോക്ക് കുറവ്?",
@@ -141,7 +141,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Punjabi', 
     nativeName: 'ਪੰਜਾਬੀ', 
     flag: '🇮🇳',
-    placeholder: "Google Gemini ਨੂੰ ਪੁੱਛੋ: 'ਅੱਜ ਦੀ ਵਿਕਰੀ ਕਿਵੇਂ ਰਹੀ?'...",
+    placeholder: "AIRA AI ਨੂੰ ਪੁੱਛੋ: 'ਅੱਜ ਦੀ ਵਿਕਰੀ ਕਿਵੇਂ ਰਹੀ?'...",
     examples: [
       "ਅੱਜ ਦੀ ਵਿਕਰੀ ਕਿਵੇਂ ਰਹੀ?",
       "ਕਿਹੜੇ ਉਤਪਾਦ ਘੱਟ ਸਟਾਕ ਵਿੱਚ ਹਨ?",
@@ -155,7 +155,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'English (US)', 
     nativeName: 'English (US)', 
     flag: '🇺🇸',
-    placeholder: "Ask Gemini: 'What should I reorder?'...",
+    placeholder: "Ask AIRA: 'What should I reorder?'...",
     examples: [
       "How were my sales today?",
       "Which products are low in stock?",
@@ -169,7 +169,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'Spanish', 
     nativeName: 'Español', 
     flag: '🇪🇸',
-    placeholder: "Pregunta a Gemini: '¿Qué debo reabastecer?'...",
+    placeholder: "Pregunta a AIRA: '¿Qué debo reabastecer?'...",
     examples: [
       "¿Cómo estuvieron mis ventas hoy?",
       "¿Qué productos tienen bajo stock?",
@@ -183,7 +183,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'French', 
     nativeName: 'Français', 
     flag: '🇫🇷',
-    placeholder: "Demandez à Gemini: 'Que dois-je recommander?'...",
+    placeholder: "Demandez à AIRA: 'Que dois-je recommander?'...",
     examples: [
       "Comment se sont passées mes ventes aujourd'hui?",
       "Quels produits sont en rupture de stock?",
@@ -197,7 +197,7 @@ export const SUPPORTED_LANGUAGES = [
     name: 'German', 
     nativeName: 'Deutsch', 
     flag: '🇩🇪',
-    placeholder: "Frag Gemini: 'Was soll ich nachbestellen?'...",
+    placeholder: "Frag AIRA: 'Was soll ich nachbestellen?'...",
     examples: [
       "Wie waren meine Verkäufe heute?",
       "Welche Produkte haben geringen Bestand?",
@@ -228,8 +228,8 @@ export const getLanguageConfig = (code) => {
 
 export const getGeminiConfig = () => {
   return {
-    apiKey: localStorage.getItem('aira_gemini_api_key') || '',
-    model: localStorage.getItem('aira_gemini_model') || 'gemini-2.5-flash',
+    apiKey: localStorage.getItem('aira_assistant_api_key') || '',
+    model: localStorage.getItem('aira_assistant_model') || 'aira-local-engine',
     voiceEnabled: localStorage.getItem('aira_voice_enabled') !== 'false', // default true
     voiceLanguage: localStorage.getItem('aira_voice_language') || 'en-IN',
     speechRate: parseFloat(localStorage.getItem('aira_speech_rate') || '1.0')
@@ -237,8 +237,8 @@ export const getGeminiConfig = () => {
 }
 
 export const saveGeminiConfig = (config) => {
-  if (config.apiKey !== undefined) localStorage.setItem('aira_gemini_api_key', config.apiKey)
-  if (config.model !== undefined) localStorage.setItem('aira_gemini_model', config.model)
+  if (config.apiKey !== undefined) localStorage.setItem('aira_assistant_api_key', config.apiKey)
+  if (config.model !== undefined) localStorage.setItem('aira_assistant_model', config.model)
   if (config.voiceEnabled !== undefined) localStorage.setItem('aira_voice_enabled', config.voiceEnabled ? 'true' : 'false')
   if (config.voiceLanguage !== undefined) localStorage.setItem('aira_voice_language', config.voiceLanguage)
   if (config.speechRate !== undefined) localStorage.setItem('aira_speech_rate', config.speechRate.toString())
@@ -370,7 +370,7 @@ export const queryGeminiAssistant = async (queryText, languageCode = null) => {
   const payload = {
     message: queryText,
     api_key: config.apiKey || undefined,
-    model: config.model || 'gemini-2.5-flash',
+    model: config.model || 'aira-local-engine',
     language: langObj.code,
     language_name: langObj.name,
     store_name: storeInfo.name,
@@ -394,15 +394,15 @@ export const queryGeminiAssistant = async (queryText, languageCode = null) => {
       }
     }
   } catch (backendErr) {
-    console.warn('[Gemini Client] Backend unavailable or timed out, trying direct Gemini API or local intelligence:', backendErr.message)
+    console.warn('[AIRA Client] Backend unavailable or timed out, trying direct Gemini API or local intelligence:', backendErr.message)
   }
 
-  // 2. Direct Google Gemini REST API (if user entered API key in Settings)
+  // 2. Direct AIRA AI REST API (if user entered API key in Settings)
   if (config.apiKey) {
     try {
       const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${encodeURIComponent(config.apiKey)}`
       
-      const systemInstruction = `You are AIRA, the premier Digital AI Store Manager and Retail Voice Assistant for ${storeInfo.name}, powered by Google Gemini.
+      const systemInstruction = `You are AIRA, the premier Digital AI Store Manager and Retail Voice Assistant for ${storeInfo.name}, powered by AIRA AI.
 Owner: ${storeInfo.owner}
 Currency: ${storeInfo.currency}
 Total Products Tracked: ${products.length}
@@ -446,7 +446,7 @@ CRITICAL INSTRUCTIONS:
         }
       }
     } catch (directErr) {
-      console.warn('[Gemini Client] Direct Gemini API failed:', directErr.response?.data || directErr.message)
+      console.warn('[AIRA Client] Direct Gemini API failed:', directErr.response?.data || directErr.message)
     }
   }
 
@@ -476,14 +476,14 @@ CRITICAL INSTRUCTIONS:
     } else if (qLower.includes('fast') || qLower.includes('top') || qLower.includes('best') || qLower.includes('velocity')) {
       reply = `Your fastest selling products this week are ${topSellerNames.slice(0, 2).join(' and ')}. They represent your highest inventory turnover volume.`
     } else {
-      reply = `AIRA Gemini analyzed your query against ${storeInfo.name}'s active catalog of ${products.length} products. Store operations and inventory levels are currently operating smoothly.`
+      reply = `AIRA analyzed your query against ${storeInfo.name}'s active catalog of ${products.length} products. Store operations and inventory levels are currently operating smoothly.`
     }
   }
 
   return {
     text: reply,
     speechText: cleanSpeechText(reply),
-    model: 'Gemini Retail Engine (Local Mode)',
+    model: 'AIRA Retail Engine (Local Mode)',
     language: langObj.code,
     source: 'local_retail_ai',
     cards: findRelevantCards(queryText, reply, products)
@@ -519,3 +519,8 @@ const findRelevantCards = (query, reply, products) => {
 
   return null
 }
+
+
+export const getAIRAConfig = getGeminiConfig
+export const saveAIRAConfig = saveGeminiConfig
+export const queryAIRAAssistant = queryGeminiAssistant

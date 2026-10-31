@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
+import FloatingAssistant from './FloatingAssistant'
 
 export default function Layout() {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -32,6 +33,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <FloatingAssistant />
     </div>
   )
 }

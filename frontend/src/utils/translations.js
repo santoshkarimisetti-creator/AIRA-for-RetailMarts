@@ -33,7 +33,7 @@ export const translations = {
     'nav.settings': 'Settings',
     'nav.logout': 'Log Out',
     'nav.search': 'Search products, sales, customers, orders...',
-    'nav.askGemini': 'Ask Gemini',
+    'nav.askAIRA': 'Ask AIRA',
     'nav.fullScreen': 'Toggle Fullscreen',
 
     // Dashboard KPIs
@@ -135,7 +135,7 @@ export const translations = {
     'nav.settings': 'सेटिंग्स',
     'nav.logout': 'लॉग आउट',
     'nav.search': 'उत्पाद, बिक्री, ग्राहक, ऑर्डर खोजें...',
-    'nav.askGemini': 'जेमिनी से पूछें',
+    'nav.askAIRA': 'AIRA से पूछें',
     'nav.fullScreen': 'फुल स्क्रीन टॉगल',
 
     // Dashboard KPIs
@@ -237,7 +237,7 @@ export const translations = {
     'nav.settings': 'அமைப்புகள்',
     'nav.logout': 'வெளியேறு',
     'nav.search': 'பொருட்கள், விற்பனை, வாடிக்கையாளர்களைத் தேடவும்...',
-    'nav.askGemini': 'ஜெமினியிடம் கேட்க',
+    'nav.askAIRA': 'AIRA-விடம் கேட்க',
     'nav.fullScreen': 'முழுத்திரை',
 
     // Dashboard KPIs
@@ -339,7 +339,7 @@ export const translations = {
     'nav.settings': 'సెట్టింగ్‌లు',
     'nav.logout': 'లాగ్ అవుట్',
     'nav.search': 'ఉత్పత్తులు, అమ్మకాలు, కస్టమర్లను వెతకండి...',
-    'nav.askGemini': 'జెమినిని అడగండి',
+    'nav.askAIRA': 'AIRA ని అడగండి',
     'nav.fullScreen': 'ఫుల్ స్క్రీన్',
 
     // Dashboard KPIs
@@ -441,7 +441,7 @@ export const translations = {
     'nav.settings': 'ಸೆಟ್ಟಿಂಗ್‌ಗಳು',
     'nav.logout': 'ಲಾಗ್ ಔಟ್',
     'nav.search': 'ಉತ್ಪನ್ನಗಳು, ಮಾರಾಟ, ಗ್ರಾಹಕರನ್ನು ಹುಡುಕಿ...',
-    'nav.askGemini': 'ಜೆಮಿನಿಯನ್ನು ಕೇಳಿ',
+    'nav.askAIRA': 'AIRA ಅನ್ನು ಕೇಳಿ',
     'nav.fullScreen': 'ಪೂರ್ಣ ಪರದೆ',
 
     // Dashboard KPIs
@@ -543,7 +543,7 @@ export const translations = {
     'nav.settings': 'সেটিংস',
     'nav.logout': 'লগ আউট',
     'nav.search': 'পণ্য, বিক্রয়, গ্রাহক খুঁজুন...',
-    'nav.askGemini': 'জেমিনিকে জিজ্ঞাসা করুন',
+    'nav.askAIRA': 'জেমিনিকে জিজ্ঞাসা করুন',
     'nav.fullScreen': 'ফুল স্ক্রিন',
 
     // Dashboard KPIs
@@ -599,7 +599,7 @@ export const translations = {
     'nav.settings': 'सेटिंग्ज',
     'nav.logout': 'लॉग आउट',
     'nav.search': 'उत्पादने, विक्री, ग्राहक शोधा...',
-    'nav.askGemini': 'जेमिनीला विचारा',
+    'nav.askAIRA': 'जेमिनीला विचारा',
     'nav.fullScreen': 'पूर्ण स्क्रीन',
 
     // Dashboard KPIs
@@ -655,7 +655,7 @@ export const translations = {
     'nav.settings': 'સેટિંગ્સ',
     'nav.logout': 'લૉગ આઉટ',
     'nav.search': 'ઉત્પાદનો, વેચાણ, ગ્રાહકો શોધો...',
-    'nav.askGemini': 'જેમિનીને પૂછો',
+    'nav.askAIRA': 'જેમિનીને પૂછો',
     'nav.fullScreen': 'ફુલ સ્ક્રીન',
 
     // Dashboard KPIs
@@ -711,7 +711,7 @@ export const translations = {
     'nav.settings': 'ക്രമീകരണങ്ങൾ',
     'nav.logout': 'ലോഗ് ഔട്ട്',
     'nav.search': 'ഉൽപ്പന്നങ്ങൾ, വിൽപ്പന, ഉപഭോക്താക്കൾ തിരയുക...',
-    'nav.askGemini': 'ജെമിനിയോട് ചോദിക്കുക',
+    'nav.askAIRA': 'ജെമിനിയോട് ചോദിക്കുക',
     'nav.fullScreen': 'ഫുൾ സ്ക്രീൻ',
 
     // Dashboard KPIs
@@ -767,7 +767,7 @@ export const translations = {
     'nav.settings': 'ਸੈਟਿੰਗਾਂ',
     'nav.logout': 'ਲੌਗ ਆਉਟ',
     'nav.search': 'ਉਤਪਾਦ, ਵਿਕਰੀ, ਗਾਹਕ ਲੱਭੋ...',
-    'nav.askGemini': 'ਜੈਮਿਨੀ ਨੂੰ ਪੁੱਛੋ',
+    'nav.askAIRA': 'ਜੈਮਿਨੀ ਨੂੰ ਪੁੱਛੋ',
     'nav.fullScreen': 'ਫੁੱਲ ਸਕ੍ਰੀਨ',
 
     // Dashboard KPIs

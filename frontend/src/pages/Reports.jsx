@@ -1,3 +1,5 @@
+import { fetchReportsSummary, fetchDashboardStats } from '../services/api'
+import { useEffect } from 'react'
 import React, { useState } from 'react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -5,6 +7,21 @@ import { products, storeInfo, kpiMetrics, aiInsights } from '../utils/demoData'
 import { FileText, Download, FileSpreadsheet, Eye, Printer, Sparkles, CheckCircle2 } from 'lucide-react'
 
 export default function Reports() {
+
+  const [liveProducts, setLiveProducts] = useState(products)
+  const [liveKpis, setLiveKpis] = useState(kpiMetrics)
+
+  useEffect(() => {
+    fetchReportsSummary().then(res => {
+      if (res && res.products && res.products.length > 0) {
+        setLiveProducts(res.products)
+      }
+    }).catch(() => {})
+    fetchDashboardStats().then(s => {
+      if (s) setLiveKpis(s)
+    }).catch(() => {})
+  }, [])
+
   const [reportType, setReportType] = useState('Executive Store Performance')
   const [dateRange, setDateRange] = useState('October 2026')
   const [includeForecast, setIncludeForecast] = useState(true)
@@ -36,11 +53,11 @@ export default function Reports() {
 
     const kpiData = [
       ['Metric', 'Current Period', 'Change', 'Status'],
-      ['Today\'s Sales', kpiMetrics.todaysSales, kpiMetrics.salesChange, 'Optimal'],
-      ['Total Orders', kpiMetrics.orders, kpiMetrics.ordersChange, 'Healthy'],
-      ['Total Revenue', kpiMetrics.revenue, kpiMetrics.revenueChange, 'On Target'],
-      ['Stock Value', kpiMetrics.stockValue, kpiMetrics.stockValueChange, 'Stable'],
-      ['Low Stock Items', kpiMetrics.lowStockCount, kpiMetrics.lowStockChange, 'Attention Required'],
+      ['Today\'s Sales', (liveKpis.todaysSales || kpiMetrics.todaysSales), (liveKpis.salesChange || kpiMetrics.salesChange), 'Optimal'],
+      ['Total Orders', (liveKpis.orders || kpiMetrics.orders), (liveKpis.ordersChange || kpiMetrics.ordersChange), 'Healthy'],
+      ['Total Revenue', (liveKpis.revenue || kpiMetrics.revenue), (liveKpis.revenueChange || kpiMetrics.revenueChange), 'On Target'],
+      ['Stock Value', (liveKpis.stockValue || kpiMetrics.stockValue), (liveKpis.stockValueChange || kpiMetrics.stockValueChange), 'Stable'],
+      ['Low Stock Items', String(liveKpis.lowStockCount || kpiMetrics.lowStockCount), 'Needs Attention', 'Attention Required'],
     ]
 
     autoTable(doc, {
@@ -57,7 +74,7 @@ export default function Reports() {
     doc.setFont('helvetica', 'bold')
     doc.text('2. Critical Inventory & Stock Status', 14, finalY + 15)
 
-    const prodTable = products.map(p => [
+    const prodTable = liveProducts.map(p => [
       p.name,
       p.category,
       `₹${p.price}`,
@@ -94,7 +111,7 @@ export default function Reports() {
 
   const exportCSV = () => {
     let csv = 'Product Name,Category,Price,Current Stock,Status\n'
-    products.forEach(p => {
+    liveProducts.forEach(p => {
       csv += `"${p.name}","${p.category}",${p.price},${p.stock},"${p.status}"\n`
     })
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -184,15 +201,15 @@ export default function Reports() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 text-center text-xs">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400">TODAY SALES</span>
-                <div className="font-bold text-slate-900 text-sm">{kpiMetrics.todaysSales}</div>
+                <div className="font-bold text-slate-900 text-sm">{(liveKpis.todaysSales || kpiMetrics.todaysSales)}</div>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400">TOTAL REVENUE</span>
-                <div className="font-bold text-slate-900 text-sm">{kpiMetrics.revenue}</div>
+                <div className="font-bold text-slate-900 text-sm">{(liveKpis.revenue || kpiMetrics.revenue)}</div>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-400">LOW STOCK</span>
-                <div className="font-bold text-rose-600 text-sm">{kpiMetrics.lowStockCount} Items</div>
+                <div className="font-bold text-rose-600 text-sm">{(liveKpis.lowStockCount || kpiMetrics.lowStockCount)} Items</div>
               </div>
             </div>
           </div>

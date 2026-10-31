@@ -1,4 +1,5 @@
-import { Bell, Search, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Menu } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Bell, Search, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Menu, Receipt } from 'lucide-react'
 import { storeInfo } from '../utils/demoData'
 import { useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
@@ -66,13 +67,22 @@ export default function Navbar({ isCollapsed, setIsCollapsed, mobileOpen = false
           <input
             type="text"
             className="block w-full pl-10 pr-10 py-2 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-xs transition-all"
-            placeholder={t('nav.search', 'Search products, sales, customers, orders...')}
+            placeholder={t('nav.search', 'Search products, sales, inventory, orders...')}
           />
         </div>
       </div>
       
       {/* Actions & Language Selector & Fullscreen & AI Quick Button */}
       <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
+        {/* Sales History Navbar Button */}
+        <Link 
+          to="/app/sales-history" 
+          className="px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:text-blue-600 hover:bg-blue-50/60 font-bold text-xs flex items-center space-x-1.5 transition-colors shadow-2xs"
+          title="Sales Transaction History"
+        >
+          <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="hidden md:inline">Sales History</span>
+        </Link>
         {/* Multilingual Indian Language Selector */}
         <LanguageSelector variant="navbar" />
 
@@ -85,18 +95,18 @@ export default function Navbar({ isCollapsed, setIsCollapsed, mobileOpen = false
           {isFullscreen ? <Minimize2 className="w-4 h-4 text-blue-600" /> : <Maximize2 className="w-4 h-4" />}
         </button>
 
-        {/* Ask Gemini Quick CTA Button */}
+        {/* Ask AIRA Quick CTA Button */}
         <button 
           onClick={() => {
             const el = document.getElementById('aira-fab-trigger')
             if (el) el.click()
           }}
           className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white px-2.5 sm:px-3.5 py-1.5 text-xs font-bold rounded-xl flex items-center space-x-1.5 shadow-sm transition-all"
-          title="Open Gemini Voice Assistant"
+          title="Open AIRA Voice Assistant"
         >
           <Sparkles className="w-3.5 h-3.5 text-cyan-300 animate-pulse shrink-0" />
-          <span className="hidden sm:inline">{t('nav.askGemini', 'Ask Gemini')}</span>
-          <span className="sm:hidden text-[11px]">Gemini</span>
+          <span className="hidden sm:inline">Ask AIRA</span>
+          <span className="sm:hidden text-[11px]">AIRA</span>
         </button>
 
         <a href="/app/alerts" className="relative p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">

@@ -1,3 +1,4 @@
+import { fetchDashboardStats, fetchSalesAnalytics, fetchProducts, sellProduct, createProduct } from '../services/api'
 import React, { useState, useEffect } from 'react'
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { 
@@ -32,7 +33,8 @@ import {
   Minus,
   Camera,
   CameraOff,
-  Zap
+  Zap,
+  Award
 } from 'lucide-react'
 import { storeInfo as defaultStoreInfo, kpiMetrics as defaultKpiMetrics, salesOverviewChart, categoryPerformance, aiInsights as defaultAiInsights, products as defaultProducts, storeHealthDepartments } from '../utils/demoData'
 import { getUserKpis, getActiveStoreInfo, getUserProducts, isDemoUser, addProductToUserStore, saveUserProducts } from '../utils/userStore'
@@ -46,6 +48,23 @@ export default function Dashboard() {
   const [selectedDept, setSelectedDept] = useState(null)
   const [salesView, setSalesView] = useState('daily')
   const [productList, setProductList] = useState(() => getUserProducts())
+
+  // Live PostgreSQL States
+  const [liveKpis, setLiveKpis] = useState(null)
+  const [liveChart, setLiveChart] = useState(null)
+  const [liveCategories, setLiveCategories] = useState(null)
+
+  useEffect(() => {
+    fetchDashboardStats().then(s => setLiveKpis(s)).catch(() => {})
+    fetchSalesAnalytics().then(a => {
+      if (a && a.dailyChart) setLiveChart(a.dailyChart)
+      if (a && a.categoryPerformance) setLiveCategories(a.categoryPerformance)
+    }).catch(() => {})
+    fetchProducts().then(p => {
+      if (p && p.length > 0) setProductList(p)
+    }).catch(() => {})
+  }, [])
+
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false)
@@ -288,7 +307,7 @@ export default function Dashboard() {
   )
 
   // Handle Complete Sale
-  const handleCompleteSale = () => {
+  const handleCompleteSale = async () => {
     if (!selectedSellProduct) return
 
     const qty = parseInt(sellQty, 10) || 1
@@ -298,6 +317,14 @@ export default function Dashboard() {
     }
 
     const totalAmount = selectedSellProduct.price * qty
+
+    try {
+      await sellProduct(selectedSellProduct.id, qty)
+      const refreshedStats = await fetchDashboardStats()
+      if (refreshedStats) setLiveKpis(refreshedStats)
+    } catch (err) {
+      console.warn('[Dashboard] Sell API error, using local fallback:', err)
+    }
 
     // Update Product Stock & Sales Record
     const updatedList = productList.map(p => {
@@ -331,14 +358,14 @@ export default function Dashboard() {
   }
 
   const kpis = [
-    { key: 'kpi.todaysSales', name: "Today's Sales", value: activeKpis.todaysSales, change: activeKpis.salesChange, trend: "up", icon: IndianRupee, color: "text-blue-600 bg-blue-50" },
-    { key: 'kpi.orders', name: "Orders", value: activeKpis.orders, change: activeKpis.ordersChange, trend: "up", icon: ShoppingCart, color: "text-purple-600 bg-purple-50" },
-    { key: 'kpi.productsSold', name: "Products Sold", value: activeKpis.productsSold, change: activeKpis.productsSoldChange, trend: "up", icon: Package, color: "text-amber-600 bg-amber-50" },
-    { key: 'kpi.revenue', name: "Revenue", value: activeKpis.revenue, change: activeKpis.revenueChange, trend: "up", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50" },
-    { key: 'kpi.profit', name: "Profit", value: activeKpis.profit, change: activeKpis.profitChange, trend: "up", icon: DollarSign, color: "text-emerald-600 bg-emerald-50" },
-    { key: 'kpi.stockValue', name: "Stock Value", value: activeKpis.stockValue, change: activeKpis.stockValueChange, trend: "up", icon: Boxes, color: "text-indigo-600 bg-indigo-50" },
-    { key: 'kpi.lowStock', name: "Low Stock Items", value: activeKpis.lowStockCount, change: activeKpis.lowStockChange, trend: "down", icon: AlertTriangle, color: "text-rose-600 bg-rose-50", alert: true },
-    { key: 'kpi.newCustomers', name: "New Customers", value: activeKpis.newCustomers, change: activeKpis.newCustomersChange, trend: "up", icon: Users, color: "text-cyan-600 bg-cyan-50" },
+    { key: 'kpi.todaysSales', name: "Today's Sales", value: liveKpis?.todaysSales ?? "₹0.00", change: liveKpis?.salesChange ?? "No sales recorded yet", trend: liveKpis?.salesTrend ?? "up", icon: IndianRupee, color: "text-blue-600 bg-blue-50" },
+    { key: 'kpi.orders', name: "Orders", value: liveKpis?.orders ?? activeKpis.orders, change: liveKpis?.ordersChange ?? "All-time orders logged", trend: "up", icon: ShoppingCart, color: "text-purple-600 bg-purple-50" },
+    { key: 'kpi.productsSold', name: "Products Sold", value: liveKpis?.productsSold ?? activeKpis.productsSold, change: liveKpis?.productsSoldChange ?? "All-time units sold", trend: "up", icon: Package, color: "text-amber-600 bg-amber-50" },
+    { key: 'kpi.revenue', name: "Revenue", value: liveKpis?.revenue ?? activeKpis.revenue, change: liveKpis?.revenueChange ?? "Store cumulative revenue", trend: "up", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50" },
+    { key: 'kpi.profit', name: "Profit", value: liveKpis?.profit ?? activeKpis.profit, change: liveKpis?.profitChange ?? "Store cumulative profit", trend: "up", icon: DollarSign, color: "text-emerald-600 bg-emerald-50" },
+    { key: 'kpi.stockValue', name: "Stock Value", value: liveKpis?.stockValue ?? activeKpis.stockValue, change: liveKpis?.stockValueChange ?? "Warehouse stock asset value", trend: "up", icon: Boxes, color: "text-indigo-600 bg-indigo-50" },
+    { key: 'kpi.lowStock', name: "Low Stock Items", value: liveKpis?.lowStockCount ?? activeKpis.lowStockCount, change: liveKpis?.lowStockChange ?? `${liveKpis?.lowStockCount || 0} items need restock`, trend: "down", icon: AlertTriangle, color: "text-rose-600 bg-rose-50", alert: true },
+    { key: 'kpi.avgMargin', name: "Store Margin", value: liveKpis?.avgMargin ?? "21.7%", change: liveKpis?.avgMarginChange ?? "Storewide average margin", trend: "up", icon: Award, color: "text-cyan-600 bg-cyan-50" },
   ]
 
   // Top Selling Products Array
@@ -904,7 +931,7 @@ export default function Dashboard() {
                   {kpi.trend === 'up' ? <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> : <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />}
                   <span>{kpi.change}</span>
                 </span>
-                <span className="text-slate-400 font-normal ml-1 hidden xs:inline sm:inline">{t('kpi.vsYesterday', 'vs yesterday')}</span>
+                
               </div>
             </div>
           </div>
@@ -969,7 +996,7 @@ export default function Dashboard() {
 
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={salesOverviewChart}>
+              <AreaChart data={liveChart || salesOverviewChart}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#4f8cff" stopOpacity={0.3}/>

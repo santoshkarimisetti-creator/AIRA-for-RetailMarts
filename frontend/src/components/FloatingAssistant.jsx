@@ -5,9 +5,9 @@ import {
   ExternalLink, CheckCircle2, ChevronDown, Globe, Languages, Check
 } from 'lucide-react'
 import { 
-  queryGeminiAssistant, speakResponse, stopSpeaking, 
+  queryAIRAAssistant, speakResponse, stopSpeaking, 
   createSpeechRecognizer, isSpeechRecognitionSupported, 
-  getGeminiConfig, saveGeminiConfig, SUPPORTED_LANGUAGES, getLanguageConfig 
+  getAIRAConfig, saveAIRAConfig, SUPPORTED_LANGUAGES, getLanguageConfig 
 } from '../services/geminiService'
 
 export default function FloatingAssistant() {
@@ -20,8 +20,8 @@ export default function FloatingAssistant() {
   const [isLoading, setIsLoading] = useState(false)
   const [inputValue, setInputValue] = useState('')
   
-  // Gemini settings
-  const [config, setConfig] = useState(getGeminiConfig())
+  // AIRA settings
+  const [config, setConfig] = useState(getAIRAConfig())
   const [tempApiKey, setTempApiKey] = useState(config.apiKey)
   const [keySaved, setKeySaved] = useState(false)
 
@@ -31,14 +31,16 @@ export default function FloatingAssistant() {
     { 
       id: 1, 
       sender: 'ai',
-      text: "Hello! I'm AIRA, your Digital AI Store Manager powered by Google Gemini. Ask me anything by speaking or typing about today's sales, inventory health, or reorder recommendations.",
-      model: 'Gemini 2.5 Flash',
+      text: "Hello! I'm AIRA, your Digital AI Store Manager connected directly to your PostgreSQL database. Ask me anything about current stock, sales, prices, profit margins, or tell me to restock or record a sale directly!",
+      model: 'AIRA 2.5 Flash',
       cards: null
     }
   ])
 
   const messagesEndRef = useRef(null)
   const recognizerRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -128,7 +130,7 @@ export default function FloatingAssistant() {
   const handleSelectLanguage = (langCode) => {
     const newConfig = { ...config, voiceLanguage: langCode }
     setConfig(newConfig)
-    saveGeminiConfig(newConfig)
+    saveAIRAConfig(newConfig)
     setShowLangMenu(false)
 
     // Stop ongoing speech
@@ -139,18 +141,17 @@ export default function FloatingAssistant() {
       id: Date.now(),
       sender: 'ai',
       text: `🌐 Language switched to ${chosen.name} (${chosen.nativeName}). You can now speak or type in ${chosen.name}.`,
-      model: 'Gemini Language Engine',
+      model: 'AIRA Language Engine',
       cards: null
     }
     setMessages(prev => [...prev, switchNotice])
   }
 
-  // Handle Sending a Question
+  // Handle Sending a Question (Strictly Local Offline Assistant)
   const handleSendQuestion = async (questionText = inputValue) => {
     const query = questionText.trim()
     if (!query) return
 
-    // Stop speaking any previous message
     handleStopSpeaking()
 
     const userMsg = { id: Date.now(), sender: 'user', text: query }
@@ -160,78 +161,149 @@ export default function FloatingAssistant() {
     setIsLoading(true)
 
     try {
-      const result = await queryGeminiAssistant(query, config.voiceLanguage)
+      const response = await fetch('http://127.0.0.1:8000/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: query,
+          language: config.voiceLanguage || 'en-IN'
+        })
+      })
+      const result = await response.json()
       
       const aiMsg = {
         id: Date.now() + 1,
         sender: 'ai',
-        text: result.text,
-        model: result.model || config.model,
+        text: result.reply || result.response,
+        model: result.model || 'AIRA Local AI',
         cards: result.cards || null
       }
 
       setMessages(prev => [...prev, aiMsg])
       setIsLoading(false)
 
-      // Speak Gemini's answer aloud in target language if voice is enabled
-      if (config.voiceEnabled && result.speechText) {
-        handleSpeak(result.speechText)
+      if (config.voiceEnabled && (result.speech_text || result.reply)) {
+        handleSpeak(result.speech_text || result.reply)
       }
     } catch (err) {
-      console.error('Error querying Gemini:', err)
+      console.error('Error querying AIRA:', err)
       setIsLoading(false)
       const errorMsg = {
         id: Date.now() + 1,
         sender: 'ai',
-        text: "I encountered an issue analyzing your store telemetry with Gemini. Please check your network connection or verify your Gemini API Key in assistant settings.",
-        model: 'Gemini Assistant',
+        text: "Could not reach local AIRA assistant. Ensure backend is running on port 8000.",
+        model: 'AIRA Assistant',
         cards: null
       }
       setMessages(prev => [...prev, errorMsg])
     }
   }
 
-  // Handle Microphone click
-  const handleMicClick = () => {
-    if (!isOpen) setIsOpen(true)
+  // Real Local Audio Recording & faster-whisper Speech Recognition
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioChunksRef.current = []
+      const recorder = new MediaRecorder(stream)
 
-    // If currently speaking, stop first
-    if (isSpeaking) {
-      handleStopSpeaking()
-    }
-
-    if (isListening) {
-      if (recognizerRef.current) {
-        try { recognizerRef.current.stop() } catch (e) {}
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
       }
-      setIsListening(false)
-      setVoiceStatusText('')
-      return
-    }
 
-    if (recognizerRef.current) {
-      try {
-        recognizerRef.current.start()
-      } catch (err) {
-        console.warn('Speech recognition start error:', err)
-        simulateMicFallback()
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        stream.getTracks().forEach(track => track.stop())
+
+        if (audioBlob.size < 500) {
+          setVoiceStatusText('')
+          setIsListening(false)
+          return
+        }
+
+        setIsListening(false)
+        setIsLoading(true)
+        setVoiceStatusText('AIRA faster-whisper transcribing speech...')
+
+        try {
+          const formData = new FormData()
+          formData.append('file', audioBlob, 'audio_recording.webm')
+
+          const response = await fetch('http://127.0.0.1:8000/api/ai/voice', {
+            method: 'POST',
+            body: formData
+          })
+          const data = await response.json()
+          setIsLoading(false)
+          setVoiceStatusText('')
+
+          if (data.transcript) {
+            const userMsg = { id: Date.now(), sender: 'user', text: data.transcript }
+            const aiMsg = {
+              id: Date.now() + 1,
+              sender: 'ai',
+              text: data.reply,
+              model: data.model || 'faster-whisper + Local LLM',
+              cards: data.cards || null,
+              language: data.language
+            }
+            setMessages(prev => [...prev, userMsg, aiMsg])
+
+            if (config.voiceEnabled && (data.speech_text || data.reply)) {
+              handleSpeak(data.speech_text || data.reply)
+            }
+          } else {
+            const errorNotice = {
+              id: Date.now(),
+              sender: 'ai',
+              text: data.reply || "Could not detect clear speech. Please try speaking again.",
+              model: 'AIRA Assistant'
+            }
+            setMessages(prev => [...prev, errorNotice])
+          }
+        } catch (err) {
+          console.error('Voice processing error:', err)
+          setIsLoading(false)
+          setVoiceStatusText('')
+          const errorMsg = {
+            id: Date.now(),
+            sender: 'ai',
+            text: "Failed to connect to local voice endpoint at http://127.0.0.1:8000/api/ai/voice.",
+            model: 'AIRA Assistant'
+          }
+          setMessages(prev => [...prev, errorMsg])
+        }
       }
-    } else {
-      simulateMicFallback()
+
+      recorder.start()
+      mediaRecorderRef.current = recorder
+      setIsListening(true)
+      setVoiceStatusText(`Listening (Telugu / English)... Tap mic to send`)
+    } catch (err) {
+      console.warn('Microphone permission / capture error:', err)
+      setVoiceStatusText('Microphone access denied or unavailable.')
+      setTimeout(() => setVoiceStatusText(''), 3000)
     }
   }
 
-  const simulateMicFallback = () => {
-    setIsListening(true)
-    setVoiceStatusText(`Listening in ${activeLang.name}...`)
-    setTimeout(() => {
-      setVoiceStatusText('Gemini processing speech query...')
-      setTimeout(() => {
-        setIsListening(false)
-        setVoiceStatusText('')
-        handleSendQuestion(activeLang.examples[1] || "Which products are low in stock?")
-      }, 1000)
-    }, 1200)
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setIsListening(false)
+  }
+
+  // Handle Microphone click
+  const handleMicClick = () => {
+    if (!isOpen) setIsOpen(true)
+    if (isSpeaking) handleStopSpeaking()
+
+    if (isListening) {
+      stopVoiceRecording()
+    } else {
+      startVoiceRecording()
+    }
   }
 
   // Toggle Voice Output (TTS)
@@ -239,18 +311,18 @@ export default function FloatingAssistant() {
     const updated = !config.voiceEnabled
     const newConfig = { ...config, voiceEnabled: updated }
     setConfig(newConfig)
-    saveGeminiConfig(newConfig)
+    saveAIRAConfig(newConfig)
     if (!updated) {
       handleStopSpeaking()
     }
   }
 
-  // Save in-drawer Gemini API Key
+  // Save in-drawer AIRA API Key
   const handleSaveApiKey = (e) => {
     e.preventDefault()
     const newConfig = { ...config, apiKey: tempApiKey.trim() }
     setConfig(newConfig)
-    saveGeminiConfig(newConfig)
+    saveAIRAConfig(newConfig)
     setKeySaved(true)
     setTimeout(() => {
       setKeySaved(false)
@@ -270,7 +342,7 @@ export default function FloatingAssistant() {
             ? 'bg-[#07111f] border-2 border-cyan-400 text-white rotate-90 shadow-cyan-500/20' 
             : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:scale-110 shadow-indigo-500/30 ring-2 ring-cyan-400/50'
         }`}
-        title="Open AIRA Gemini Voice Assistant"
+        title="Open AIRA Store Voice Assistant"
       >
         {isOpen ? (
           <X className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
@@ -297,11 +369,11 @@ export default function FloatingAssistant() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-xs font-bold text-white flex items-center space-x-1.5 truncate">
-                  <span className="truncate">AIRA Gemini Voice Assistant</span>
+                  <span className="truncate">AIRA Store Voice Assistant</span>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
                 </h3>
                 <p className="text-[10px] text-cyan-400 font-mono truncate flex items-center space-x-1">
-                  <span>Powered by Gemini</span>
+                  <span>Connected to PostgreSQL</span>
                   <span className="text-slate-500">•</span>
                   <span className="text-indigo-300 font-semibold">{config.model}</span>
                 </p>
@@ -337,7 +409,7 @@ export default function FloatingAssistant() {
                 {config.voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </button>
 
-              {/* Gemini Settings Cog */}
+              {/* AIRA Settings Cog */}
               <button 
                 onClick={() => {
                   setShowConfig(!showConfig)
@@ -346,7 +418,7 @@ export default function FloatingAssistant() {
                 className={`p-1.5 rounded-lg text-xs transition-colors ${
                   showConfig ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
-                title="Gemini API & Voice Settings"
+                title="AIRA Assistant Settings"
               >
                 <Settings className="w-4 h-4" />
               </button>
@@ -400,13 +472,13 @@ export default function FloatingAssistant() {
             </div>
           )}
 
-          {/* In-Drawer Gemini Configuration Panel */}
+          {/* In-Drawer AIRA Assistant Configuration Panel */}
           {showConfig && (
             <div className="bg-[#0b1728] border-b border-slate-800 p-4 space-y-3 animate-fade-in text-xs">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white flex items-center space-x-1.5">
                   <Key className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Gemini Configuration</span>
+                  <span>AIRA Assistant Configuration</span>
                 </span>
                 <a 
                   href="https://aistudio.google.com/app/apikey" 
@@ -421,7 +493,7 @@ export default function FloatingAssistant() {
 
               <form onSubmit={handleSaveApiKey} className="space-y-2.5">
                 <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">Google Gemini API Key</label>
+                  <label className="text-[10px] text-slate-400 block mb-1">AIRA AI API Key</label>
                   <input 
                     type="password" 
                     value={tempApiKey}
@@ -433,19 +505,19 @@ export default function FloatingAssistant() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Gemini Model</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">AIRA AI Model</label>
                     <select 
                       value={config.model}
                       onChange={(e) => {
                         const updated = { ...config, model: e.target.value }
                         setConfig(updated)
-                        saveGeminiConfig(updated)
+                        saveAIRAConfig(updated)
                       }}
                       className="w-full px-2 py-1.5 bg-[#050c17] border border-slate-700 rounded-lg text-[11px] text-white focus:outline-none focus:border-cyan-400"
                     >
-                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (Fastest & Best)</option>
-                      <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-                      <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning)</option>
+                      <option value="aira-local-engine">AIRA Database Engine (Local & Real-Time)</option>
+                      <option value="aira-local-engine-lite">AIRA Lightweight Model</option>
+                      <option value="aira-pro-engine">AIRA Pro Engine</option>
                     </select>
                   </div>
 
@@ -542,7 +614,7 @@ export default function FloatingAssistant() {
                       <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-700/50 text-[10px] text-cyan-400 font-mono">
                         <span className="flex items-center space-x-1">
                           <Sparkles className="w-3 h-3 text-cyan-400" />
-                          <span>{msg.model || 'Gemini'}</span>
+                          <span>{msg.model || 'AIRA'}</span>
                         </span>
                         {/* Read Aloud Button */}
                         <button 
@@ -596,7 +668,7 @@ export default function FloatingAssistant() {
                 <div className="bg-[#0f1d30] border border-cyan-500/40 p-3.5 rounded-2xl rounded-tl-xs shadow-md space-y-2 max-w-[85%]">
                   <div className="flex items-center space-x-2 text-xs text-cyan-300 font-mono">
                     <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-                    <span>Gemini is analyzing store telemetry in {activeLang.name}...</span>
+                    <span>AIRA is analyzing database telemetry in {activeLang.name}...</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-500 animate-pulse w-3/4 rounded-full" />

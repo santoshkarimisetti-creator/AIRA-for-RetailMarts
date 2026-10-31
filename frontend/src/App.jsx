@@ -5,11 +5,11 @@ import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import StoreHealth from './pages/StoreHealth'
 import SalesAnalytics from './pages/SalesAnalytics'
+import SalesHistory from './pages/SalesHistory'
 import DemandForecast from './pages/DemandForecast'
 import AIInsights from './pages/AIInsights'
 import Reports from './pages/Reports'
 import Alerts from './pages/Alerts'
-import Customers from './pages/Customers'
 import ProductStats from './pages/ProductStats'
 import POSCheckout from './pages/POSCheckout'
 import DataImport from './pages/DataImport'
@@ -18,7 +18,6 @@ import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import OnboardingWizard from './pages/OnboardingWizard'
-import FloatingAssistant from './components/FloatingAssistant'
 
 const isAuthenticated = () => {
   return localStorage.getItem('aira_auth') === 'true'
@@ -60,7 +59,7 @@ function App() {
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
         
         {/* Protected Command Center Workspace Routes (Require Login) */}
-        <Route path="/app" element={<ProtectedRoute><FloatingAssistant /><Layout /></ProtectedRoute>}>
+        <Route path="/app" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="pos" element={<POSCheckout />} />
           <Route path="barcode" element={<POSCheckout />} />
@@ -69,11 +68,11 @@ function App() {
           <Route path="products" element={<ProductStats />} />
           <Route path="product-stats" element={<ProductStats />} />
           <Route path="sales" element={<SalesAnalytics />} />
+          <Route path="sales-history" element={<SalesHistory />} />
           <Route path="forecast" element={<DemandForecast />} />
           <Route path="insights" element={<AIInsights />} />
           <Route path="reports" element={<Reports />} />
           <Route path="alerts" element={<Alerts />} />
-          <Route path="customers" element={<Customers />} />
           <Route path="import" element={<DataImport />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />

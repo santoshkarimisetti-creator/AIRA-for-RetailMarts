@@ -44,3 +44,15 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Temporary scratch files, installers & prompt artifacts
+Plan
+LOCAL_AI_INTEGRATION_DETAILS.md
+check_all_pages.py
+download_ollama.py
+install_ollama.ps1
+*.exe
+*.webm
+*.wav
+*.m4a
+*.tmp

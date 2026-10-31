@@ -12,6 +12,7 @@ import {
   Store,
   DollarSign,
   Barcode,
+  Receipt,
   LogOut,
   Languages,
   X
@@ -25,11 +26,11 @@ const navigation = [
   { key: 'nav.inventory', name: 'Inventory', href: '/app/inventory', icon: Package },
   { key: 'nav.products', name: 'Products', href: '/app/products', icon: DollarSign },
   { key: 'nav.sales', name: 'Sales Analytics', href: '/app/sales', icon: BarChart3 },
+  { key: 'nav.salesHistory', name: 'Sales History', href: '/app/sales-history', icon: Receipt },
   { key: 'nav.forecast', name: 'Demand Forecast', href: '/app/forecast', icon: LineChart },
   { key: 'nav.insights', name: 'AI Insights', href: '/app/insights', icon: BrainCircuit },
   { key: 'nav.reports', name: 'Reports', href: '/app/reports', icon: FileText },
   { key: 'nav.alerts', name: 'Alerts', href: '/app/alerts', icon: BellRing },
-  { key: 'nav.customers', name: 'Customers', href: '/app/customers', icon: Users },
   { key: 'nav.settings', name: 'Settings', href: '/app/settings', icon: Settings },
 ]
 
