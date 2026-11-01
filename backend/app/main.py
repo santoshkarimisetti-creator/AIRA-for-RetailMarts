@@ -688,6 +688,7 @@ def get_reports_summary(db: Session = Depends(get_db)):
     total_units = sum(p.units_sold or 0 for p in products)
     stock_val = sum((p.stock or 0) * (p.cost_price or 0.0) for p in products)
     critical_items = [p for p in products if (p.stock or 0) <= (p.min_stock or 15)]
+    critical_items.sort(key=lambda p: (p.stock or 0))
 
     # Product list for table
     prod_table = [
@@ -700,28 +701,223 @@ def get_reports_summary(db: Session = Depends(get_db)):
             "costPrice": p.cost_price,
             "stock": p.stock,
             "minStock": p.min_stock,
-            "status": p.status,
+            "status": "Critical" if (p.stock or 0) <= (p.min_stock or 15) else "Healthy",
             "unitsSold": p.units_sold,
             "revenue": p.revenue,
-            "margin": p.margin
+            "margin": p.margin,
+            "reorderRecommendation": p.order_recommendation or 30
         }
         for p in products
     ]
 
+    # Dynamic AI Recommendations computed directly from live PostgreSQL data
+    recommendations = []
+    for p in critical_items[:3]:
+        reorder = p.order_recommendation or max(20, (p.min_stock or 15) * 2 - (p.stock or 0))
+        recommendations.append(f"{p.name}: Critical inventory ({p.stock} units left, below min threshold {p.min_stock}). Autonomous advice: Reorder {reorder} units immediately.")
+
+    top_prod = sorted(products, key=lambda p: (p.revenue or 0.0), reverse=True)
+    if top_prod:
+        p0 = top_prod[0]
+        recommendations.append(f"{p0.name}: Highest store revenue generator with ₹{p0.revenue:,.2f} sales ({p0.units_sold} units sold). Keep stock buffer optimal.")
+
+    high_margin = [p for p in products if (p.margin or 0.0) >= 30 and (p.stock or 0) > 10]
+    if high_margin:
+        hm = sorted(high_margin, key=lambda p: (p.margin or 0.0), reverse=True)[0]
+        recommendations.append(f"{hm.name}: Top margin contributor ({hm.margin:.1f}% margin, ₹{hm.unit_profit or 0:.2f}/unit). Recommend prime shelf placement near checkout.")
+
+    now_ist = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+
     return {
-        "storeName": "AIRA Retail Mart",
-        "generatedAt": datetime.utcnow().strftime("%B %d, %Y"),
-        "totalRevenue": total_rev,
-        "totalProfit": total_prof,
+        "storeName": os.getenv("STORE_NAME", "AIRA Retail Mart"),
+        "generatedAt": now_ist.strftime("%B %d, %Y"),
+        "generatedTime": now_ist.strftime("%I:%M %p IST"),
+        "totalRevenue": round(total_rev, 2),
+        "totalProfit": round(total_prof, 2),
         "totalUnitsSold": total_units,
-        "stockValuation": stock_val,
+        "stockValuation": round(stock_val, 2),
         "criticalItemsCount": len(critical_items),
+        "criticalProducts": [p for p in prod_table if p["status"] == "Critical"][:15],
+        "recommendations": recommendations,
         "products": prod_table
+    }
+
+@app.get("/api/ai/insights")
+def get_ai_insights(db: Session = Depends(get_db)):
+    """
+    AIRA Autonomous Intelligence Engine - Live Store Insights.
+    Grounded 100% in live PostgreSQL product telemetry, demand velocity, and inventory margins.
+    """
+    products = db.query(Product).all()
+    insights = []
+    
+    # 1. Critical Low Stock Items
+    low_stock_items = [p for p in products if (p.stock or 0) <= (p.min_stock or 15)]
+    low_stock_items.sort(key=lambda p: (p.stock or 0))
+    for p in low_stock_items[:4]:
+        reorder = p.order_recommendation or max(20, (p.min_stock or 15) * 2 - (p.stock or 0))
+        insights.append({
+            "id": f"crit_{p.id}",
+            "type": "critical",
+            "priority": "High Priority",
+            "title": f"Stockout Risk: {p.name[:32]}",
+            "message": f"{p.name} has only {p.stock} units remaining in inventory (minimum threshold is {p.min_stock}). Autonomous forecast recommends ordering {reorder} units immediately to prevent stockout.",
+            "actionText": f"Restock {p.name.split()[0]}",
+            "actionUrl": f"/app/inventory?search={p.sku}",
+            "productId": p.id,
+            "category": p.category,
+            "metric": f"{p.stock} left (Min {p.min_stock})"
+        })
+        
+    # 2. Sales Opportunity / Fast Sellers
+    top_sellers = sorted(products, key=lambda p: (p.revenue or 0.0), reverse=True)
+    for p in top_sellers[:3]:
+        insights.append({
+            "id": f"opp_{p.id}",
+            "type": "opportunity",
+            "priority": "Growth Velocity",
+            "title": f"Top Revenue Driver: {p.name[:32]}",
+            "message": f"{p.name} has generated ₹{p.revenue:,.2f} with {p.units_sold} units sold. Demand velocity remains high. Keep buffer stock healthy.",
+            "actionText": "View Product Stats",
+            "actionUrl": "/app/products",
+            "productId": p.id,
+            "category": p.category,
+            "metric": f"₹{p.revenue:,.0f} Sales"
+        })
+        
+    # 3. High Margin Item to Promote
+    high_margin_items = [p for p in products if (p.margin or 0.0) >= 30 and (p.stock or 0) > 10]
+    high_margin_items.sort(key=lambda p: (p.margin or 0.0), reverse=True)
+    for p in high_margin_items[:2]:
+        insights.append({
+            "id": f"marg_{p.id}",
+            "type": "opportunity",
+            "priority": "Profit Booster",
+            "title": f"High Margin Winner: {p.name[:32]}",
+            "message": f"{p.name} yields an exceptional {p.margin:.1f}% profit margin (₹{p.unit_profit or 0:.2f} per unit). Placing it near checkout or bundling can boost weekly store profit.",
+            "actionText": "Promote Item",
+            "actionUrl": "/app/pos",
+            "productId": p.id,
+            "category": p.category,
+            "metric": f"{p.margin:.1f}% Margin"
+        })
+        
+    # 4. Slow-Moving Stock / Capital Optimization
+    slow_items = [p for p in products if (p.stock or 0) >= 25 and (p.units_sold or 0) <= 8]
+    for p in slow_items[:2]:
+        insights.append({
+            "id": f"slow_{p.id}",
+            "type": "warning",
+            "priority": "Working Capital",
+            "title": f"Overstock Warning: {p.name[:32]}",
+            "message": f"{p.name} has {p.stock} units sitting in warehouse with only {p.units_sold} units sold. Consider a 5-10% bundle discount to free up working capital.",
+            "actionText": "Create Discount",
+            "actionUrl": "/app/inventory",
+            "productId": p.id,
+            "category": p.category,
+            "metric": f"{p.stock} units idle"
+        })
+        
+    # 5. Store Overall Health Metric
+    total_rev = sum(p.revenue or 0.0 for p in products)
+    total_prof = sum(p.total_profit or 0.0 for p in products)
+    avg_margin = (total_prof / total_rev * 100) if total_rev > 0 else 24.5
+    insights.append({
+        "id": "store_health_01",
+        "type": "info",
+        "priority": "Executive Audit",
+        "title": "Store Intelligence Telemetry",
+        "message": f"Store catalog maintains {len(products)} active SKUs with an average margin of {avg_margin:.1f}%. Total cumulative profit is ₹{total_prof:,.2f} across ₹{total_rev:,.2f} recorded revenue.",
+        "actionText": "View Sales Analytics",
+        "actionUrl": "/app/sales",
+        "metric": f"{avg_margin:.1f}% Avg Margin"
+    })
+    
+    return {
+        "status": "success",
+        "totalInsights": len(insights),
+        "criticalCount": len(low_stock_items),
+        "insights": insights
     }
 
 @app.get("/api/alerts")
 def get_alerts(db: Session = Depends(get_db)):
-    return db.query(Alert).order_by(Alert.id.desc()).all()
+    """
+    AIRA Dynamic Real-Time Alerts.
+    Generates live alerts from PostgreSQL inventory levels (stockouts, low stock, sales surges)
+    and combines with any unread alerts stored in the database.
+    """
+    products = db.query(Product).all()
+    now_ist = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    alerts = []
+    
+    # 1. Real critical stock alerts from PostgreSQL
+    critical_prods = [p for p in products if (p.stock or 0) <= (p.min_stock or 15)]
+    critical_prods.sort(key=lambda p: (p.stock or 0))
+    for p in critical_prods[:8]:
+        is_out = (p.stock or 0) == 0
+        reorder_amt = p.order_recommendation or 30
+        alerts.append({
+            "id": 1000 + p.id,
+            "productId": p.id,
+            "title": f"Out of Stock: {p.name}" if is_out else f"Low Stock: {p.name}",
+            "desc": f"Zero units remaining in inventory! Reorder {reorder_amt} units immediately to prevent loss of sales." if is_out else f"Current inventory level is {p.stock} units, below minimum safe threshold of {p.min_stock} units. Recommended reorder: {reorder_amt} units.",
+            "type": "critical",
+            "priority": "High Priority",
+            "time": "Just now",
+            "is_read": False,
+            "category": p.category,
+            "created_at": now_ist.isoformat()
+        })
+        
+    # 2. Warning alerts for approaching threshold
+    warning_prods = [p for p in products if (p.min_stock or 15) < (p.stock or 0) <= (p.min_stock or 15) + 6]
+    for p in warning_prods[:4]:
+        alerts.append({
+            "id": 2000 + p.id,
+            "productId": p.id,
+            "title": f"Approaching Minimum Threshold: {p.name}",
+            "desc": f"Current inventory is {p.stock} units, nearing minimum safe threshold of {p.min_stock} units. Monitor demand velocity.",
+            "type": "warning",
+            "priority": "Medium Priority",
+            "time": "Today",
+            "is_read": False,
+            "category": p.category,
+            "created_at": now_ist.isoformat()
+        })
+        
+    # 3. Opportunity alerts for top revenue/velocity
+    top_velocity = sorted(products, key=lambda p: (p.units_sold or 0), reverse=True)[:3]
+    for p in top_velocity:
+        alerts.append({
+            "id": 3000 + p.id,
+            "productId": p.id,
+            "title": f"High Demand Velocity: {p.name}",
+            "desc": f"{p.name} has recorded {p.units_sold} units sold (₹{p.revenue:,.2f} cumulative revenue). Maintain full shelf visibility.",
+            "type": "opportunity",
+            "priority": "Sales Spike",
+            "time": "Active",
+            "is_read": False,
+            "category": p.category,
+            "created_at": now_ist.isoformat()
+        })
+
+    # 4. Any custom non-read alerts stored in database (excluding legacy outdated test records)
+    db_alerts = db.query(Alert).filter(Alert.is_read == False).order_by(Alert.id.desc()).all()
+    for a in db_alerts:
+        if "Dussehra" not in (a.title or ""):
+            alerts.append({
+                "id": a.id,
+                "title": a.title,
+                "desc": a.desc or a.title,
+                "type": a.type or "warning",
+                "priority": a.priority or "Medium Priority",
+                "time": a.time or "Recent",
+                "is_read": a.is_read or False,
+                "created_at": a.created_at.isoformat() if a.created_at else now_ist.isoformat()
+            })
+            
+    return alerts
 
 @app.post("/api/alerts/{alert_id}/read")
 def mark_alert_read(alert_id: int, db: Session = Depends(get_db)):

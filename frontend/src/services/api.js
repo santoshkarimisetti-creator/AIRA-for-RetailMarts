@@ -124,6 +124,12 @@ export const fetchReportsSummary = async () => {
   return res.data
 }
 
+// AI Insights
+export const fetchAIInsights = async () => {
+  const res = await client.get('/ai/insights')
+  return res.data
+}
+
 // Alerts
 export const fetchAlerts = async () => {
   const res = await client.get('/alerts')
@@ -148,6 +154,7 @@ export default {
   fetchSalesAnalytics,
   fetchSalesHistory,
   fetchReportsSummary,
+  fetchAIInsights,
   fetchAlerts,
   markAlertAsRead
 }
