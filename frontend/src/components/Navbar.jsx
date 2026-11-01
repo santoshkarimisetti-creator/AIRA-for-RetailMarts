@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bell, Search, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Menu, Receipt } from 'lucide-react'
+import { Bell, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Menu, Receipt } from 'lucide-react'
 import { storeInfo } from '../utils/demoData'
 import { useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
@@ -58,20 +58,6 @@ export default function Navbar({ isCollapsed, setIsCollapsed, mobileOpen = false
         </div>
       </div>
       
-      {/* Global Search Input */}
-      <div className="flex-1 max-w-lg px-3 sm:px-6 hidden md:block">
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
-          </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-10 py-2 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-xs transition-all"
-            placeholder={t('nav.search', 'Search products, sales, inventory, orders...')}
-          />
-        </div>
-      </div>
-      
       {/* Actions & Language Selector & Fullscreen & AI Quick Button */}
       <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
         {/* Sales History Navbar Button */}
@@ -83,6 +69,7 @@ export default function Navbar({ isCollapsed, setIsCollapsed, mobileOpen = false
           <Receipt className="w-4 h-4 text-blue-600 shrink-0" />
           <span className="hidden md:inline">Sales History</span>
         </Link>
+
         {/* Multilingual Indian Language Selector */}
         <LanguageSelector variant="navbar" />
 

@@ -1,7 +1,13 @@
 """
-AIRA - Local Ollama LLM Intelligence Engine
-Translates user natural language (English, Telugu, or mixed Telugu-English) into PostgreSQL queries,
-executes safe read-only queries against live PostgreSQL records, and synthesizes natural conversational answers.
+AIRA - Local Multilingual Ollama LLM Intelligence Engine
+Translates user natural language:
+- Telugu (తెలుగు) + English
+- Hindi (हिन्दी) + English
+- English
+- Tamil (தமிழ்) + English
+- Malayalam (മലയാളം) + English
+into safe PostgreSQL queries, executes read-only queries against live PostgreSQL records,
+and synthesizes natural conversational answers strictly in the user's chosen language.
 Guarantees 100% offline, local inference without cloud dependencies.
 """
 
@@ -15,7 +21,7 @@ import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models import Product, SalesRecord, Alert
-from app.ai.rule_based_assistant import rule_assistant
+from app.ai.rule_based_assistant import rule_assistant, detect_language
 
 logger = logging.getLogger("aira.local_llm")
 
@@ -27,30 +33,45 @@ Tables:
 1. products (id, name, sku, category, price, cost_price, unit_profit, margin, stock, min_stock, units_sold, revenue, total_profit, order_recommendation)
 2. sales_records (id, product_id, units_sold, price_per_unit, total_amount, sale_date)
 
+MULTILINGUAL ENTITY DICTIONARY (Translate regional terms to English product search):
+- Telugu: నూనె -> Oil, బియ్యం -> Rice, పాలు -> Milk, చక్కెర -> Sugar, పప్పు -> Dal, నెయ్యి -> Ghee, సబ్బు -> Soap, ఆటా -> Atta, బిస్కెట్ -> Biscuit
+- Hindi: तेल -> Oil, चावल -> Rice, दूध -> Milk, चीनी -> Sugar, दाल -> Dal, घी -> Ghee, साबुन -> Soap, आटा -> Atta, बिस्कुट -> Biscuit
+- Tamil: எண்ணெய் -> Oil, அரிசி -> Rice, பால் -> Milk, சர்க்கரை -> Sugar, பருப்பு -> Dal, நெய் -> Ghee, சோப் -> Soap, மாவு -> Atta, பிஸ்கட் -> Biscuit
+- Malayalam: എണ്ണ -> Oil, അരി -> Rice, പാൽ -> Milk, പഞ്ചസാര -> Sugar, പരിപ്പ് -> Dal, നെയ്യ് -> Ghee, സോപ്പ് -> Soap, ആട്ട -> Atta, ബിസ്കറ്റ് -> Biscuit
+
 RULES:
 - Return ONLY ONE valid PostgreSQL SELECT query inside ```sql ... ```.
 - Strictly read-only SELECT.
+- Product name search must use English keywords with ILIKE, e.g.: WHERE name ILIKE '%oil%' or WHERE name ILIKE '%rice%' or WHERE name ILIKE '%milk%'
 - Today's sales: WHERE DATE(sale_date) = CURRENT_DATE or DATE(sale_date) = '{today}'
-- Product name search: ILIKE '%name%'
 """
 
-SYNTHESIS_SYSTEM_PROMPT = """You are AIRA (Autonomous Intelligent Retail Assistant), a friendly, experienced digital store manager talking directly to the retail store owner.
-You are running locally on their laptop.
+SYNTHESIS_SYSTEM_PROMPT = """You are AIRA (Autonomous Intelligent Retail Assistant), a friendly, helpful store assistant speaking directly to the retail store owner.
+You are running locally on their device.
 
-CRITICAL COMMUNICATION RULES:
-1. Speak in NATURAL, EVERYDAY HUMAN LANGUAGE like a helpful shop manager or cashier speaking to the owner.
-   - Example (English): "Today's sales are ₹1,630 so far, across 4 orders."
-   - Example (Telugu): "ఈ రోజు మొత్తం అమ్మకాలు ₹1,630 అయ్యాయి. మొత్తం 4 ఆర్డర్లలో 4 వస్తువులు అమ్ముడయ్యాయి."
-2. NEVER use robotic database phrases like:
+CRITICAL MULTILINGUAL & BILINGUAL CODE-SWITCHING RULES:
+1. Respond STRICTLY in the target language requested (Telugu, Hindi, Tamil, Malayalam, or English).
+2. Natural bilingual code-switching with everyday retail English words (such as 'sales', 'stock', 'orders', 'units', 'price', 'profit') is encouraged and expected for natural conversational flow.
+   - Example (Telugu): "ఈ రోజు మొత్తం ₹1,630 sales అయ్యాయి. 4 orders ద్వారా 4 units అమ్ముడయ్యాయి."
+   - Example (Hindi): "आज कुल ₹1,630 की sales हुई है। 4 orders में 4 units बिकी हैं।"
+   - Example (Tamil): "இன்று மொத்தம் ₹1,630 விற்பனை (sales) ஆகியுள்ளது. 4 orders மூலம் 4 units விற்பனையானது."
+   - Example (Malayalam): "ഇന്ന് ആകെ ₹1,630 sales നടന്നിട്ടുണ്ട്. 4 orders വഴി 4 units വിറ്റുപോയി."
+   - Example (English): "Today's sales are ₹1,630 so far across 4 orders."
+3. NEVER use robotic database phrases like:
    - Do NOT say "According to PostgreSQL records..."
    - Do NOT say "The SQL query returned..."
    - Do NOT say "Database telemetry indicates..."
-3. BILINGUAL RESPONSE RULE:
-   - If the user asks in Telugu or mixed Telugu-English (code-switching like 'ఈ రోజు sales ఎంత?' or 'today sales ఎలా ఉన్నాయి?'), respond in warm, natural conversational Telugu.
-   - If the user asks in English, respond in clear, friendly English.
-4. Keep the answer direct and concise (1-2 sentences) so it can be read easily and spoken out loud via text-to-speech.
-5. Base all financial figures strictly on the provided real Database Query Results. Never invent fake numbers.
+4. Keep the answer direct, warm, and concise (1-2 sentences) so it can be read easily and spoken aloud via text-to-speech.
+5. Base all financial figures strictly on the provided real Database Query Results. Never invent numbers.
 """
+
+LANGUAGE_DISPLAY_NAMES = {
+    "te": "Telugu (తెలుగు) with natural English retail loanwords",
+    "hi": "Hindi (हिन्दी) with natural English retail loanwords",
+    "ta": "Tamil (தமிழ்) with natural English retail loanwords",
+    "ml": "Malayalam (മലയാളം) with natural English retail loanwords",
+    "en": "English"
+}
 
 class LocalOllamaAssistant:
     def __init__(self, base_url: str = OLLAMA_BASE_URL, default_model: str = DEFAULT_MODEL):
@@ -86,7 +107,7 @@ class LocalOllamaAssistant:
         return cleaned
 
     def _generate_sql(self, user_query: str, model_name: str) -> Optional[str]:
-        """Asks Ollama LLM to generate a safe PostgreSQL SELECT query from user's natural language."""
+        """Asks Ollama LLM to generate a safe PostgreSQL SELECT query from user's multilingual question."""
         today_str = datetime.now().strftime("%Y-%m-%d")
         system_content = DB_SCHEMA_PROMPT.format(today=today_str)
         user_content = f"User Question: {user_query}\nGenerate the PostgreSQL SQL query:"
@@ -99,7 +120,7 @@ class LocalOllamaAssistant:
             ],
             "stream": False,
             "keep_alive": -1,
-            "options": {"temperature": 0.0, "num_predict": 60}
+            "options": {"temperature": 0.0, "num_predict": 70}
         }
 
         try:
@@ -118,11 +139,11 @@ class LocalOllamaAssistant:
     def _execute_safe_sql(self, sql_query: str, db: Session) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """Executes a strictly validated read-only SQL query on PostgreSQL."""
         cleaned = sql_query.strip()
+
         # Security check: must start with SELECT
         if not re.match(r'^\s*SELECT\b', cleaned, re.IGNORECASE):
             return [], "Only SELECT queries are permitted."
 
-        # Disallow dangerous SQL tokens
         dangerous_tokens = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "EXEC", "CREATE", "GRANT", "REVOKE"]
         for token in dangerous_tokens:
             if re.search(r'\b' + token + r'\b', cleaned, re.IGNORECASE):
@@ -138,16 +159,16 @@ class LocalOllamaAssistant:
             logger.warning(f"SQL execution error: {e}")
             return [], str(e)
 
-    def _synthesize_answer(self, user_query: str, db_results: List[Dict[str, Any]], model_name: str, is_telugu: bool) -> Optional[str]:
-        """Asks Ollama LLM to synthesize a natural conversational response in Telugu or English."""
+    def _synthesize_answer(self, user_query: str, db_results: List[Dict[str, Any]], model_name: str, target_lang: str) -> Optional[str]:
+        """Asks Ollama LLM to synthesize a natural conversational response in the user's specific language."""
         results_json = json.dumps(db_results, default=str)
-        lang_target = "Telugu (తెలుగు)" if is_telugu else "English"
+        lang_target_desc = LANGUAGE_DISPLAY_NAMES.get(target_lang, "English")
 
         prompt = (
             f"User Question: {user_query}\n"
             f"Verified PostgreSQL Results: {results_json}\n\n"
-            f"Respond directly to the shop owner in {lang_target} in 1-2 conversational sentences. "
-            f"Do not use robotic prefixes. State the numbers naturally."
+            f"Respond directly to the shop owner strictly in {lang_target_desc} in 1-2 conversational sentences. "
+            f"Do not use robotic database prefixes. State the financial/inventory numbers naturally."
         )
 
         payload = {
@@ -158,7 +179,7 @@ class LocalOllamaAssistant:
             ],
             "stream": False,
             "keep_alive": -1,
-            "options": {"temperature": 0.2, "num_predict": 75}
+            "options": {"temperature": 0.2, "num_predict": 85}
         }
 
         try:
@@ -178,23 +199,24 @@ class LocalOllamaAssistant:
         store_name: str = "AIRA Supermarket"
     ) -> Dict[str, Any]:
         """
-        Main query entrypoint.
-        1. Uses Ollama to understand the text and generate a SQL query.
-        2. Executes the safe read-only SQL on PostgreSQL.
-        3. Uses Ollama to speak the final answer in natural language.
-        4. If Ollama is downloading or starting up, uses the verified ORM fallback.
+        Main multilingual query entrypoint.
+        Supports Telugu (te), Hindi (hi), English (en), Tamil (ta), and Malayalam (ml).
+        1. Checks Rule-Based Engine first for instant (< 50ms) direct responses.
+        2. Routes un-templated questions to Ollama (gemma3:4b).
+        3. Generates safe read-only SQL, executes on PostgreSQL, and synthesizes reply in the user's language.
         """
-        is_telugu = (language.startswith("te") or bool(re.search(r'[\u0C00-\u0C7F]', prompt)))
+        user_lang = detect_language(prompt, language)
+        bcp_lang_tag = f"{user_lang}-IN"
 
-        # Priority Check: If query exists in rule-based assistant, answer directly from PostgreSQL without invoking Ollama!
+        # Priority Check: Answer instantly (< 50ms) via verified Rule Assistant if query pattern matches
         if rule_assistant.can_handle(prompt, db):
-            logger.info("Query matched Rule-Based pattern. Answering directly from PostgreSQL instantly.")
+            logger.info(f"Query matched verified pattern. Answering directly in {user_lang} via PostgreSQL rule engine.")
             base_result = rule_assistant.execute_and_reply(
                 query=prompt,
                 db=db,
                 store_name=store_name,
                 currency="₹",
-                language="te-IN" if is_telugu else "en-IN"
+                language=bcp_lang_tag
             )
             db_reply = base_result.get("reply", base_result.get("response", ""))
             return {
@@ -204,7 +226,7 @@ class LocalOllamaAssistant:
                 "model": "AIRA Instant Rule Assistant",
                 "engine": "PostgreSQL Rule Engine",
                 "cards": base_result.get("cards", []),
-                "language": "te-IN" if is_telugu else "en-IN"
+                "language": bcp_lang_tag
             }
 
         # Check if Ollama is running and has models
@@ -217,7 +239,7 @@ class LocalOllamaAssistant:
             elif available:
                 model_to_use = available[0]
 
-            logger.info(f"Ollama running model: {model_to_use}. Translating query to SQL...")
+            logger.info(f"Ollama running model: {model_to_use}. Translating multilingual query to SQL...")
             
             # Step 1: Text-to-SQL
             sql = self._generate_sql(prompt, model_to_use)
@@ -226,29 +248,28 @@ class LocalOllamaAssistant:
                 # Step 2: Safe execution on PostgreSQL
                 db_results, err = self._execute_safe_sql(sql, db)
                 if not err and db_results:
-                    # Step 3: Natural language conversational synthesis
-                    conversational_reply = self._synthesize_answer(prompt, db_results, model_to_use, is_telugu)
+                    # Step 3: Natural language conversational synthesis in user's original language
+                    conversational_reply = self._synthesize_answer(prompt, db_results, model_to_use, user_lang)
                     if conversational_reply:
-                        # Extract product cards if product IDs or names are present
                         cards = self._extract_cards_from_results(db_results, db)
                         return {
                             "reply": conversational_reply,
                             "response": conversational_reply,
                             "speech_text": self._clean_speech_text(conversational_reply),
                             "model": f"Ollama ({model_to_use})",
-                            "engine": "Ollama Text-to-SQL + PostgreSQL",
+                            "engine": "Ollama Multilingual SQL + PostgreSQL",
                             "sql_executed": sql,
                             "cards": cards,
-                            "language": "te-IN" if is_telugu else "en-IN"
+                            "language": bcp_lang_tag
                         }
 
-        # Step 4: Fallback to ORM Intelligence if Ollama is loading or model is downloading
+        # Step 4: Fallback to ORM Intelligence if Ollama is loading
         base_result = rule_assistant.execute_and_reply(
             query=prompt,
             db=db,
             store_name=store_name,
             currency="₹",
-            language="te-IN" if is_telugu else "en-IN"
+            language=bcp_lang_tag
         )
 
         db_reply = base_result.get("reply", base_result.get("response", ""))
@@ -261,7 +282,7 @@ class LocalOllamaAssistant:
             "model": "AIRA Intelligent Store Engine",
             "engine": "PostgreSQL Live Ground",
             "cards": cards,
-            "language": "te-IN" if is_telugu else "en-IN"
+            "language": bcp_lang_tag
         }
 
     def _extract_cards_from_results(self, results: List[Dict[str, Any]], db: Session) -> List[Dict[str, Any]]:

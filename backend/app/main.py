@@ -938,17 +938,31 @@ def get_product_forecast(product_id: int, db: Session = Depends(get_db)):
     sales_sample = [s[0] for s in recent_sales] if recent_sales else [12, 18, 22, 28, 32, 40, 48]
     return forecaster.predict_demand(sales_sample, product_id)
 
+def normalize_target_lang(lang_str: Optional[str]) -> str:
+    if not lang_str:
+        return "en"
+    l = lang_str.strip().lower()
+    if l.startswith("te"):
+        return "te"
+    if l.startswith("hi"):
+        return "hi"
+    if l.startswith("ta"):
+        return "ta"
+    if l.startswith("ml"):
+        return "ml"
+    return "en"
+
 @app.post("/api/ai/chat")
 @app.post("/api/chat")
 @app.post("/api/assistant/chat")
 def ai_chat_assistant(query: ChatQuery, db: Session = Depends(get_db)):
     """
     AIRA Local AI Chat Assistant
-    Powered by Local LLM (Ollama) with fallback ground to PostgreSQL DB.
+    Powered by Local LLM (Ollama) with fallback grounded in PostgreSQL DB.
+    Supports Telugu, Hindi, English, Tamil, and Malayalam.
     """
     store_title = query.store_name or os.getenv("STORE_NAME", "AIRA Retail Mart")
-    lang_code = query.language or "en-IN"
-    clean_lang = "te" if "te" in lang_code.lower() else "en"
+    clean_lang = normalize_target_lang(query.language)
     return local_assistant.query(
         prompt=query.message,
         db=db,
@@ -960,6 +974,7 @@ def ai_chat_assistant(query: ChatQuery, db: Session = Depends(get_db)):
 @app.post("/api/voice")
 async def ai_voice_assistant(
     file: UploadFile = File(...),
+    language: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -979,7 +994,7 @@ async def ai_voice_assistant(
             }
 
         # 1. Faster-Whisper Speech Recognition & Language Detection
-        stt_result = stt_engine.transcribe(audio_bytes)
+        stt_result = stt_engine.transcribe(audio_bytes, language=language)
         transcript = stt_result.get("text", "").strip()
         detected_lang = stt_result.get("language", "en")
         confidence = stt_result.get("language_probability", 1.0)

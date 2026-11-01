@@ -6,40 +6,89 @@ import {
   ExternalLink, CheckCircle2, ChevronDown, Globe, Languages, Check
 } from 'lucide-react'
 import { 
-  queryAIRAAssistant, speakResponse, stopSpeaking, 
-  createSpeechRecognizer, isSpeechRecognitionSupported, 
-  getAIRAConfig, saveAIRAConfig, SUPPORTED_LANGUAGES, getLanguageConfig 
+  speakResponse, stopSpeaking, 
+  getAIRAConfig, saveAIRAConfig 
 } from '../services/geminiService'
+
+const ASSISTANT_LANGUAGES = [
+  { code: 'en', label: 'English', native: 'English', bcp: 'en-IN', flag: '🇬🇧' },
+  { code: 'te', label: 'Telugu', native: 'తెలుగు', bcp: 'te-IN', flag: '🇮🇳' },
+  { code: 'hi', label: 'Hindi', native: 'हिन्दी', bcp: 'hi-IN', flag: '🇮🇳' },
+  { code: 'ta', label: 'Tamil', native: 'தமிழ்', bcp: 'ta-IN', flag: '🇮🇳' },
+  { code: 'ml', label: 'Malayalam', native: 'മലയാളം', bcp: 'ml-IN', flag: '🇮🇳' }
+]
+
+const LANGUAGE_SUGGESTIONS = {
+  en: [
+    "What are today's sales?",
+    "How much oil stock is left?",
+    "Which products are low in stock?",
+    "Price of Basmati Rice"
+  ],
+  te: [
+    "ఈ రోజు sales ఎంత?",
+    "నూనె stock ఎంత ఉంది?",
+    "తక్కువగా ఉన్న వస్తువులు ఏవి?",
+    "బియ్యం price ఎంత?"
+  ],
+  hi: [
+    "आज की sales कितनी हुई?",
+    "चावल का स्टॉक कितना है?",
+    "कम स्टॉक वाले सामान कौन से हैं?",
+    "दूध का भाव क्या है?"
+  ],
+  ta: [
+    "இன்று sales எவ்வளவு?",
+    "அரிசி இருப்பு எவ்வளவு?",
+    "குறைந்த இருப்பு பொருட்கள் எவை?",
+    "பால் விலை என்ன?"
+  ],
+  ml: [
+    "ഇന്നത്തെ sales എത്രയാണ്?",
+    "എണ്ണ സ്റ്റോക്ക് എത്രയുണ്ട്?",
+    "സ്റ്റോക്ക് കുറഞ്ഞ സാധനങ്ങൾ ഏവ?",
+    "പഞ്ചസാര വില എത്ര?"
+  ]
+}
+
+const LANGUAGE_PLACEHOLDERS = {
+  en: "Ask AIRA: 'What are today's sales?', 'How much rice stock is left?'...",
+  te: "అడగండి: 'ఈ రోజు sales ఎంత?', 'నూనె stock ఎంత ఉంది?'...",
+  hi: "पूछें: 'आज की sales कितनी हुई?', 'चावल का स्टॉक कितना है?'...",
+  ta: "கேளுங்கள்: 'இன்று sales எவ்வளவு?', 'அரிசி இருப்பு எவ்வளவு?'...",
+  ml: "ചോദിക്കൂ: 'ഇന്നത്തെ sales എത്രയാണ്?', 'എണ്ണ സ്റ്റോക്ക് എത്രയുണ്ട്?'..."
+}
 
 export default function FloatingAssistant() {
   const [isOpen, setIsOpen] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
-  const [showLangMenu, setShowLangMenu] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [voiceStatusText, setVoiceStatusText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [inputValue, setInputValue] = useState('')
   
+  // Active regional language (English, Telugu, Hindi, Tamil, Malayalam)
+  const [selectedLang, setSelectedLang] = useState(() => {
+    return localStorage.getItem('aira_assistant_lang') || 'en'
+  })
+
   // AIRA settings
   const [config, setConfig] = useState(getAIRAConfig())
-  const [tempApiKey, setTempApiKey] = useState(config.apiKey)
-  const [keySaved, setKeySaved] = useState(false)
 
-  const activeLang = getLanguageConfig(config.voiceLanguage)
+  const activeLangObj = ASSISTANT_LANGUAGES.find(l => l.code === selectedLang) || ASSISTANT_LANGUAGES[0]
 
   const [messages, setMessages] = useState([
     { 
       id: 1, 
       sender: 'ai',
-      text: "Hello! I'm AIRA, your Digital AI Store Manager connected directly to your PostgreSQL database. Ask me anything about current stock, sales, prices, profit margins, or tell me to restock or record a sale directly!",
-      model: 'AIRA 2.5 Flash',
+      text: "Hello! I'm AIRA, your Digital AI Store Manager connected directly to your PostgreSQL database. You can speak or type in English, Telugu (తెలుగు), Hindi (हिन्दी), Tamil (தமிழ்), or Malayalam (മലയാളം) with everyday English retail words!",
+      model: 'AIRA Multilingual Assistant',
       cards: null
     }
   ])
 
   const messagesEndRef = useRef(null)
-  const recognizerRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
 
@@ -56,65 +105,18 @@ export default function FloatingAssistant() {
     if (!isOpen) {
       stopSpeaking()
       setIsSpeaking(false)
-      setShowLangMenu(false)
     }
   }, [isOpen])
 
-  // Listen for global app language changes
-  useEffect(() => {
-    const handleGlobalLang = (e) => {
-      const voiceCode = e.detail?.voiceCode
-      if (voiceCode && voiceCode !== config.voiceLanguage) {
-        setConfig(prev => ({ ...prev, voiceLanguage: voiceCode }))
-      }
-    }
-    window.addEventListener('aira_language_changed', handleGlobalLang)
-    return () => window.removeEventListener('aira_language_changed', handleGlobalLang)
-  }, [config.voiceLanguage])
-
-  // Initialize Speech Recognition for active language
-  useEffect(() => {
-    if (isSpeechRecognitionSupported()) {
-      const recognizer = createSpeechRecognizer({
-        language: config.voiceLanguage || 'en-IN',
-        onStart: () => {
-          setIsListening(true)
-          setVoiceStatusText(`Listening (${activeLang.name})...`)
-        },
-        onInterim: (text) => {
-          setInputValue(text)
-          setVoiceStatusText(`Transcribing: "${text}"`)
-        },
-        onResult: (finalText) => {
-          setInputValue(finalText)
-          setIsListening(false)
-          setVoiceStatusText('')
-          handleSendQuestion(finalText)
-        },
-        onError: (err) => {
-          console.warn('Speech recognition error:', err)
-          setIsListening(false)
-          setVoiceStatusText('Voice error. Switching to fallback...')
-          setTimeout(() => setVoiceStatusText(''), 1500)
-        },
-        onEnd: () => {
-          setIsListening(false)
-          setVoiceStatusText('')
-        }
-      })
-      recognizerRef.current = recognizer
-    }
-  }, [config.voiceLanguage])
-
-  // Handle Speech Output
+  // Handle Speech Output (TTS)
   const handleSpeak = (text) => {
-    if (!config.voiceEnabled) return
+    if (!config.voiceEnabled || !text) return
 
     stopSpeaking()
     setIsSpeaking(true)
 
     speakResponse(text, {
-      language: config.voiceLanguage,
+      language: activeLangObj.bcp,
       rate: config.speechRate,
       onStart: () => setIsSpeaking(true),
       onEnd: () => setIsSpeaking(false),
@@ -125,27 +127,6 @@ export default function FloatingAssistant() {
   const handleStopSpeaking = () => {
     stopSpeaking()
     setIsSpeaking(false)
-  }
-
-  // Handle Language Change
-  const handleSelectLanguage = (langCode) => {
-    const newConfig = { ...config, voiceLanguage: langCode }
-    setConfig(newConfig)
-    saveAIRAConfig(newConfig)
-    setShowLangMenu(false)
-
-    // Stop ongoing speech
-    handleStopSpeaking()
-
-    const chosen = getLanguageConfig(langCode)
-    const switchNotice = {
-      id: Date.now(),
-      sender: 'ai',
-      text: `🌐 Language switched to ${chosen.name} (${chosen.nativeName}). You can now speak or type in ${chosen.name}.`,
-      model: 'AIRA Language Engine',
-      cards: null
-    }
-    setMessages(prev => [...prev, switchNotice])
   }
 
   // Handle Sending a Question (Strictly Local Offline Assistant)
@@ -167,7 +148,7 @@ export default function FloatingAssistant() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
-          language: config.voiceLanguage || 'en-IN'
+          language: selectedLang
         })
       })
       const result = await response.json()
@@ -177,7 +158,8 @@ export default function FloatingAssistant() {
         sender: 'ai',
         text: result.reply || result.response,
         model: result.model || 'AIRA Local AI',
-        cards: result.cards || null
+        cards: result.cards || null,
+        language: result.language || activeLangObj.bcp
       }
 
       setMessages(prev => [...prev, aiMsg])
@@ -200,7 +182,7 @@ export default function FloatingAssistant() {
     }
   }
 
-  // Real Local Audio Recording & faster-whisper Speech Recognition
+  // Real Local Audio Recording & Multilingual faster-whisper Recognition
   const startVoiceRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -233,11 +215,12 @@ export default function FloatingAssistant() {
 
         setIsListening(false)
         setIsLoading(true)
-        setVoiceStatusText('AIRA faster-whisper transcribing speech...')
+        setVoiceStatusText(`Transcribing ${activeLangObj.label} speech...`)
 
         try {
           const formData = new FormData()
           formData.append('file', audioBlob, 'audio_recording.webm')
+          formData.append('language', selectedLang)
 
           const response = await fetch('http://127.0.0.1:8000/api/ai/voice', {
             method: 'POST',
@@ -266,7 +249,7 @@ export default function FloatingAssistant() {
             const errorNotice = {
               id: Date.now(),
               sender: 'ai',
-              text: data.reply || "Could not detect clear speech. Please try speaking again.",
+              text: data.reply || "Could not detect clear speech. Please click the mic and try again.",
               model: 'AIRA Assistant'
             }
             setMessages(prev => [...prev, errorNotice])
@@ -288,7 +271,7 @@ export default function FloatingAssistant() {
       recorder.start()
       mediaRecorderRef.current = recorder
       setIsListening(true)
-      setVoiceStatusText(`Listening (Telugu / English)... Tap mic to send`)
+      setVoiceStatusText(`Listening (${activeLangObj.label})... Click mic to stop`)
     } catch (err) {
       console.warn('Microphone permission / capture error:', err)
       setVoiceStatusText('Microphone access denied or unavailable.')
@@ -326,47 +309,32 @@ export default function FloatingAssistant() {
     }
   }
 
-  // Save in-drawer AIRA API Key
-  const handleSaveApiKey = (e) => {
-    e.preventDefault()
-    const newConfig = { ...config, apiKey: tempApiKey.trim() }
-    setConfig(newConfig)
-    saveAIRAConfig(newConfig)
-    setKeySaved(true)
-    setTimeout(() => {
-      setKeySaved(false)
-      setShowConfig(false)
-    }, 1500)
-  }
+  const currentSuggestions = LANGUAGE_SUGGESTIONS[selectedLang] || LANGUAGE_SUGGESTIONS.en
+  const currentPlaceholder = LANGUAGE_PLACEHOLDERS[selectedLang] || LANGUAGE_PLACEHOLDERS.en
 
   return (
     <>
-      <button id="aira-fab-trigger" onClick={() => setIsOpen(!isOpen)} className="hidden" />
-
-      {/* Floating Glowing FAB */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-300 z-50 shadow-2xl ${
-          isOpen 
-            ? 'bg-[#07111f] border-2 border-cyan-400 text-white rotate-90 shadow-cyan-500/20' 
-            : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:scale-110 shadow-indigo-500/30 ring-2 ring-cyan-400/50'
-        }`}
-        title="Open AIRA Store Voice Assistant"
-      >
-        {isOpen ? (
-          <X className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
-        ) : (
-          <div className="relative flex items-center justify-center">
-            {/* Pulsing Aura */}
-            <span className="absolute -inset-1 rounded-full bg-cyan-400/30 animate-ping opacity-75" />
-            <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-white animate-pulse" />
+      {/* Floating Action Button (FAB) Trigger */}
+      {!isOpen && (
+        <button
+          id="aira-fab-trigger"
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-6 right-6 z-40 bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 p-0.5 rounded-2xl shadow-xl hover:scale-105 transition-all group"
+          title="Open AIRA Digital Store Manager"
+          aria-label="Open AIRA Assistant"
+        >
+          <div className="bg-[#07111f] rounded-[14px] p-3.5 flex items-center space-x-2 text-white">
+            <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
+            <span className="text-xs font-bold font-mono tracking-wider">AIRA</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           </div>
-        )}
-      </button>
+        </button>
+      )}
 
-      {/* Chat Drawer */}
+      {/* Floating Assistant Drawer Window */}
       {isOpen && (
-        <div className="fixed bottom-18 sm:bottom-24 right-2 left-2 sm:left-auto sm:right-6 sm:w-[460px] h-[520px] sm:h-[580px] max-h-[82vh] sm:max-h-[85vh] bg-[#091322]/95 border border-cyan-500/30 rounded-3xl backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden z-40 animate-slide-up text-slate-100">
+        <div className="fixed bottom-4 right-4 z-50 w-[94vw] sm:w-[440px] h-[640px] max-h-[90vh] bg-[#07111f] border border-cyan-500/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-slide-up backdrop-blur-md">
           
           {/* Header */}
           <div className="bg-[#050c17] px-4 py-3 border-b border-slate-800 flex items-center justify-between">
@@ -378,33 +346,19 @@ export default function FloatingAssistant() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-xs font-bold text-white flex items-center space-x-1.5 truncate">
-                  <span className="truncate">AIRA Store Voice Assistant</span>
+                  <span className="truncate">AIRA Multilingual Assistant</span>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
                 </h3>
                 <p className="text-[10px] text-cyan-400 font-mono truncate flex items-center space-x-1">
-                  <span>Connected to PostgreSQL</span>
+                  <span>PostgreSQL Grounded</span>
                   <span className="text-slate-500">•</span>
-                  <span className="text-indigo-300 font-semibold">{config.model}</span>
+                  <span className="text-indigo-300 font-semibold">{activeLangObj.native}</span>
                 </p>
               </div>
             </div>
 
             {/* Quick Actions Header */}
             <div className="flex items-center space-x-1 shrink-0">
-              {/* Quick Language Selector Pill */}
-              <button 
-                onClick={() => {
-                  setShowLangMenu(!showLangMenu)
-                  if (showConfig) setShowConfig(false)
-                }}
-                className="px-2 py-1 rounded-lg bg-[#0d1e34] hover:bg-[#122846] border border-cyan-500/30 text-cyan-300 text-[11px] font-semibold flex items-center space-x-1 transition-colors"
-                title="Change Language"
-              >
-                <span>{activeLang.flag}</span>
-                <span className="hidden sm:inline font-sans">{activeLang.nativeName}</span>
-                <ChevronDown className="w-3 h-3 text-cyan-400" />
-              </button>
-
               {/* Voice Mute / Speak Toggle */}
               <button 
                 onClick={toggleVoiceOutput}
@@ -418,20 +372,7 @@ export default function FloatingAssistant() {
                 {config.voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
               </button>
 
-              {/* AIRA Settings Cog */}
-              <button 
-                onClick={() => {
-                  setShowConfig(!showConfig)
-                  if (showLangMenu) setShowLangMenu(false)
-                }}
-                className={`p-1.5 rounded-lg text-xs transition-colors ${
-                  showConfig ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-                title="AIRA Assistant Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-
+              {/* Close Button */}
               <button 
                 onClick={() => setIsOpen(false)} 
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
@@ -442,138 +383,42 @@ export default function FloatingAssistant() {
             </div>
           </div>
 
-          {/* Language Selector Dropdown Popover */}
-          {showLangMenu && (
-            <div className="bg-[#0b1728] border-b border-slate-800 p-3 animate-fade-in text-xs max-h-56 overflow-y-auto">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-700/60">
-                <span className="font-bold text-white flex items-center space-x-1.5">
-                  <Languages className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Select Voice & Response Language</span>
-                </span>
-                <span className="text-[10px] text-cyan-400 font-mono">16 Languages Supported</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {SUPPORTED_LANGUAGES.map((lang) => {
-                  const isSelected = lang.code === config.voiceLanguage
-                  return (
-                    <button
-                      key={lang.code}
-                      onClick={() => handleSelectLanguage(lang.code)}
-                      className={`p-2 rounded-xl text-left flex items-center justify-between text-xs transition-all ${
-                        isSelected 
-                          ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-400 text-white font-bold' 
-                          : 'bg-[#060e1a] hover:bg-[#0d1e34] border border-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2 truncate">
-                        <span className="text-base shrink-0">{lang.flag}</span>
-                        <div className="truncate">
-                          <div className="truncate text-xs font-semibold">{lang.nativeName}</div>
-                          <div className="text-[9px] text-slate-400 truncate">{lang.name}</div>
-                        </div>
-                      </div>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0 ml-1" />}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* In-Drawer AIRA Assistant Configuration Panel */}
-          {showConfig && (
-            <div className="bg-[#0b1728] border-b border-slate-800 p-4 space-y-3 animate-fade-in text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-white flex items-center space-x-1.5">
-                  <Key className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>AIRA Assistant Configuration</span>
-                </span>
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-[10px] text-cyan-400 hover:underline flex items-center space-x-1 font-mono"
-                >
-                  <span>Get Free Key</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-
-              <form onSubmit={handleSaveApiKey} className="space-y-2.5">
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-1">AIRA AI API Key</label>
-                  <input 
-                    type="password" 
-                    value={tempApiKey}
-                    onChange={(e) => setTempApiKey(e.target.value)}
-                    placeholder="AIzaSy... (configured in .env)"
-                    className="w-full px-3 py-1.5 bg-[#050c17] border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-mono"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">AIRA AI Model</label>
-                    <select 
-                      value={config.model}
-                      onChange={(e) => {
-                        const updated = { ...config, model: e.target.value }
-                        setConfig(updated)
-                        saveAIRAConfig(updated)
-                      }}
-                      className="w-full px-2 py-1.5 bg-[#050c17] border border-slate-700 rounded-lg text-[11px] text-white focus:outline-none focus:border-cyan-400"
-                    >
-                      <option value="aira-local-engine">AIRA Database Engine (Local & Real-Time)</option>
-                      <option value="aira-local-engine-lite">AIRA Lightweight Model</option>
-                      <option value="aira-pro-engine">AIRA Pro Engine</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Voice Language</label>
-                    <select 
-                      value={config.voiceLanguage}
-                      onChange={(e) => handleSelectLanguage(e.target.value)}
-                      className="w-full px-2 py-1.5 bg-[#050c17] border border-slate-700 rounded-lg text-[11px] text-white focus:outline-none focus:border-cyan-400"
-                    >
-                      {SUPPORTED_LANGUAGES.map(l => (
-                        <option key={l.code} value={l.code}>
-                          {l.flag} {l.nativeName} ({l.name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[10px] text-slate-400">
-                    {keySaved ? (
-                      <span className="text-emerald-400 font-semibold flex items-center space-x-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Saved successfully!</span>
-                      </span>
-                    ) : (
-                      <span>Takes effect immediately</span>
-                    )}
-                  </span>
-                  <button 
-                    type="submit"
-                    className="px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold rounded-lg text-[11px] shadow-sm hover:opacity-90"
+          {/* Quick 5-Language Switcher Strip */}
+          <div className="px-3 py-1.5 bg-[#06101c] border-b border-slate-800 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none">
+            <span className="text-[10px] text-slate-400 font-mono flex items-center space-x-1 shrink-0">
+              <Globe className="w-3 h-3 text-cyan-400" />
+              <span className="hidden sm:inline">Lang:</span>
+            </span>
+            <div className="flex items-center space-x-1">
+              {ASSISTANT_LANGUAGES.map((l) => {
+                const isSel = selectedLang === l.code
+                return (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => {
+                      setSelectedLang(l.code)
+                      localStorage.setItem('aira_assistant_lang', l.code)
+                    }}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${
+                      isSel
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xs'
+                        : 'bg-[#091524] text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                    }`}
                   >
-                    Apply
+                    {l.flag} {l.native}
                   </button>
-                </div>
-              </form>
+                )
+              })}
             </div>
-          )}
+          </div>
 
           {/* Voice Listening Banner */}
           {isListening && (
             <div className="bg-gradient-to-r from-rose-500/20 via-cyan-500/20 to-purple-500/20 px-4 py-2 text-center text-xs font-mono text-cyan-300 border-b border-cyan-500/30 animate-pulse flex items-center justify-between">
               <div className="flex items-center space-x-2 truncate">
                 <Mic className="w-4 h-4 text-rose-400 animate-bounce shrink-0" />
-                <span className="truncate">{voiceStatusText || `Listening to your voice (${activeLang.name})...`}</span>
+                <span className="truncate">{voiceStatusText || `Listening (${activeLangObj.label})...`}</span>
               </div>
               <button 
                 onClick={handleMicClick}
@@ -590,7 +435,7 @@ export default function FloatingAssistant() {
               <div className="flex items-center space-x-2">
                 <Volume2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse shrink-0" />
                 <span className="flex items-center space-x-1">
-                  <span>AIRA speaking ({activeLang.nativeName})...</span>
+                  <span>AIRA speaking ({activeLangObj.native})...</span>
                   <span className="flex space-x-0.5">
                     <span className="w-1 h-2 bg-cyan-400 rounded-full animate-bounce" />
                     <span className="w-1 h-3 bg-cyan-400 rounded-full animate-bounce [animation-delay:0.15s]" />
@@ -677,7 +522,7 @@ export default function FloatingAssistant() {
                 <div className="bg-[#0f1d30] border border-cyan-500/40 p-3.5 rounded-2xl rounded-tl-xs shadow-md space-y-2 max-w-[85%]">
                   <div className="flex items-center space-x-2 text-xs text-cyan-300 font-mono">
                     <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-                    <span>AIRA is analyzing database telemetry in {activeLang.name}...</span>
+                    <span>AIRA analyzing PostgreSQL telemetry in {activeLangObj.label}...</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-500 animate-pulse w-3/4 rounded-full" />
@@ -689,9 +534,9 @@ export default function FloatingAssistant() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Example Suggestion Pills Translated to Current Language */}
+          {/* Example Suggestion Pills for Selected Language */}
           <div className="px-3.5 py-2 bg-[#050c17]/90 border-t border-slate-800 flex items-center space-x-1.5 overflow-x-auto scrollbar-none">
-            {activeLang.examples.map((q, idx) => (
+            {currentSuggestions.map((q, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSendQuestion(q)}
@@ -711,7 +556,7 @@ export default function FloatingAssistant() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendQuestion()}
-                  placeholder={activeLang.placeholder}
+                  placeholder={currentPlaceholder}
                   className="w-full pl-3 pr-10 py-2.5 bg-[#0b1626] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50"
                 />
                 
@@ -724,7 +569,7 @@ export default function FloatingAssistant() {
                       ? 'bg-rose-500/30 text-rose-400 animate-pulse ring-2 ring-rose-500/40' 
                       : 'text-slate-400 hover:text-cyan-400 hover:bg-slate-800'
                   }`}
-                  title={isListening ? "Listening... (Click to Cancel)" : `Speak in ${activeLang.name}`}
+                  title={isListening ? "Listening... (Click to Cancel)" : `Speak in ${activeLangObj.label}`}
                 >
                   <Mic className="w-4 h-4" />
                 </button>
