@@ -29,7 +29,7 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 
 DB_SCHEMA_PROMPT = """PostgreSQL Database: aira_db. Current Date: {today}
-Tables:
+Strict Tables (NO OTHER TABLES EXIST):
 1. products (id, name, sku, category, price, cost_price, unit_profit, margin, stock, min_stock, units_sold, revenue, total_profit, order_recommendation)
 2. sales_records (id, product_id, units_sold, price_per_unit, total_amount, sale_date)
 
@@ -42,6 +42,7 @@ MULTILINGUAL ENTITY DICTIONARY (Translate regional terms to English product sear
 RULES:
 - Return ONLY ONE valid PostgreSQL SELECT query inside ```sql ... ```.
 - Strictly read-only SELECT.
+- ONLY query tables 'products' or 'sales_records'. Do NOT invent tables like rice_stock or oil_stock.
 - Product name search must use English keywords with ILIKE, e.g.: WHERE name ILIKE '%oil%' or WHERE name ILIKE '%rice%' or WHERE name ILIKE '%milk%'
 - Today's sales: WHERE DATE(sale_date) = CURRENT_DATE or DATE(sale_date) = '{today}'
 """
@@ -120,11 +121,11 @@ class LocalOllamaAssistant:
             ],
             "stream": False,
             "keep_alive": -1,
-            "options": {"temperature": 0.0, "num_predict": 70}
+            "options": {"temperature": 0.0, "num_predict": 45, "num_ctx": 1024}
         }
 
         try:
-            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=90.0)
+            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=25.0)
             if resp.status_code == 200:
                 content = resp.json().get("message", {}).get("content", "").strip()
                 match = re.search(r'```(?:sql)?\s*(SELECT.+?)\s*```', content, re.DOTALL | re.IGNORECASE)
@@ -179,11 +180,11 @@ class LocalOllamaAssistant:
             ],
             "stream": False,
             "keep_alive": -1,
-            "options": {"temperature": 0.2, "num_predict": 85}
+            "options": {"temperature": 0.1, "num_predict": 50, "num_ctx": 1024}
         }
 
         try:
-            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=90.0)
+            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=25.0)
             if resp.status_code == 200:
                 answer = resp.json().get("message", {}).get("content", "").strip()
                 return answer

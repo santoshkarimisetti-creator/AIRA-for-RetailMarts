@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, status, Query, File, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, status, Query, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session

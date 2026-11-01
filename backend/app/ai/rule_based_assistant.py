@@ -39,33 +39,40 @@ MULTILINGUAL_PRODUCT_MAP = {
     "పిండి": "flour", "చక్కెర": "sugar", "షుగర్": "sugar", "పాలు": "milk", "మిల్క్": "milk",
     "సబ్బు": "soap", "సోప్": "soap", "టీ": "tea", "చాయ్": "tea", "కాఫీ": "coffee", "పప్పు": "dal",
     "దాల్": "dal", "నెయ్యి": "ghee", "ఘీ": "ghee", "సగ్గుబియ్యం": "sago", "జామ్": "jam",
-    "బిస్కెట్": "biscuit", "బిస్కెట్లు": "biscuit", "ఉప్పు": "salt",
+    "బిస్కెట్": "biscuit", "బిస్కెట్లు": "biscuit", "ఉప్పు": "salt", "గుడ్లు": "egg", "ఎగ్స్": "egg",
+    "బాదం": "almond", "కాజు": "cashew", "జీడిపప్పు": "cashew", "మ్యాగీ": "maggi", "నూడుల్స్": "noodle",
+    "ఓట్స్": "oats", "షాంపూ": "shampoo", "పేస్ట్": "paste", "టూత్‌పేస్ట్": "paste", "సర్ఫ్": "detergent",
+    "డిటర్జెంట్": "detergent",
 
     # Hindi
     "चावल": "rice", "तेल": "oil", "आटा": "atta", "दूध": "milk", "दाल": "dal", "चीनी": "sugar",
     "शक्कर": "sugar", "साबुन": "soap", "चाय": "tea", "कॉफी": "coffee", "घी": "ghee",
     "बिस्कुट": "biscuit", "नमक": "salt", "मसाला": "masala", "हल्दी": "turmeric", "मिर्च": "chilli",
+    "अंडे": "egg", "बादाम": "almond", "काजू": "cashew", "मैगी": "maggi", "नूडल्स": "noodle",
+    "ओट्स": "oats", "शैम्पू": "shampoo", "पेस्ट": "paste", "टूथपेस्ट": "paste", "सर्फ": "detergent",
 
     # Tamil
     "அரிசி": "rice", "எண்ணெய்": "oil", "மாவு": "atta", "பால்": "milk", "பருப்பு": "dal",
     "சர்க்கரை": "sugar", "சோப்": "soap", "தேநீர்": "tea", "டீ": "tea", "காபி": "coffee",
-    "நெய்": "ghee", "பிஸ்கட்": "biscuit", "உப்பு": "salt",
+    "நெய்": "ghee", "பிஸ்கட்": "biscuit", "உப்பு": "salt", "முட்டை": "egg", "பாதாம்": "almond",
+    "முந்திரி": "cashew", "மேகி": "maggi", "ஷாம்பு": "shampoo", "பேஸ்ட்": "paste",
 
     # Malayalam
     "അരി": "rice", "എണ്ണ": "oil", "ആട്ട": "atta", "പാൽ": "milk", "പരിപ്പ്": "dal",
     "പഞ്ചസാര": "sugar", "സോപ്പ്": "soap", "ചായ": "tea", "ടീ": "tea", "കാപ്പി": "coffee",
-    "നെയ്യ്": "ghee", "ബിസ്കറ്റ്": "biscuit", "ഉപ്പ്": "salt"
+    "നെയ്യ്": "ghee", "ബിസ്കറ്റ്": "biscuit", "ഉപ്പ്": "salt", "മുട്ട": "egg", "ബദാം": "almond",
+    "കശുവണ്ടി": "cashew", "മാഗി": "maggi", "ഷാംപൂ": "shampoo", "പേസ്റ്റ്": "paste"
 }
 
 def detect_language(text: str, hint: str = "en") -> str:
     """Detects language among Telugu (te), Hindi (hi), Tamil (ta), Malayalam (ml), or English (en)."""
-    if hint.startswith("te") or re.search(r'[ఀ-౿]', text):
+    if hint.startswith("te") or re.search(r'[\u0C00-\u0C7F]', text):
         return "te"
-    if hint.startswith("hi") or re.search(r'[ऀ-ॿ]', text):
+    if hint.startswith("hi") or re.search(r'[\u0900-\u097F]', text):
         return "hi"
-    if hint.startswith("ta") or re.search(r'[஀-௿]', text):
+    if hint.startswith("ta") or re.search(r'[\u0B80-\u0BFF]', text):
         return "ta"
-    if hint.startswith("ml") or re.search(r'[ഀ-ൿ]', text):
+    if hint.startswith("ml") or re.search(r'[\u0D00-\u0D7F]', text):
         return "ml"
     if hint.startswith("en"):
         return "en"
@@ -239,19 +246,79 @@ class RuleBasedAssistantEngine:
             return self._format_result(reply, "Daily Sales", cards, f"{lang}-IN")
 
         # =========================================================================
-        # 4. QUERY: LOW STOCK / REORDER (Multilingual)
+        # 4. QUERY: HIGHEST PROFIT / BEST MARGIN (Multilingual)
+        # =========================================================================
+        is_profit_query = (
+            any(w in q_lower for w in ["highest profit", "most profit", "best profit", "highest margin", "most profitable", "best margin", "top profit"])
+            or any(w in query for w in ["ఎక్కువ లాభం", "అత్యధిక లాభం", "లాభదాయకమైన", "లాభం ఇచ్చే", "లాభం"])
+            or any(w in query for w in ["सबसे ज्यादा मुनाफा", "ज्यादा मुनाफा", "अधिक लाभ", "हाई प्रॉफिट", "मुनाफे वाला", "मुनाफा"])
+            or any(w in query for w in ["அதிக லாபம்", "அதிக லாபகரமான"])
+            or any(w in query for w in ["കൂടുതൽ ലാഭം", "ഏറ്റവും ലാഭം"])
+        )
+
+        if is_profit_query:
+            top_profit_prod = max(all_products, key=lambda x: (x.total_profit or 0.0), default=None)
+            if top_profit_prod:
+                top_items = sorted(all_products, key=lambda x: (x.total_profit or 0.0), reverse=True)[:3]
+                for p in top_items:
+                    cards.append(self._product_to_card(p))
+
+                if lang == "te":
+                    reply = f"మీ స్టోర్‌లో అత్యధిక లాభం అందించే ఉత్పత్తి {top_profit_prod.name}. దీని లాభం మార్జిన్ {top_profit_prod.margin}% మరియు ఇప్పటివరకు మొత్తం {currency}{top_profit_prod.total_profit:,.2f} లాభం తెచ్చిపెట్టింది. ప్రస్తుత స్టాక్: {top_profit_prod.stock} యూనిట్లు."
+                elif lang == "hi":
+                    reply = f"आपकी दुकान में सबसे ज्यादा मुनाफा देने वाला प्रोडक्ट {top_profit_prod.name} है। इसका मार्जिन {top_profit_prod.margin}% है और इसने अब तक कुल {currency}{top_profit_prod.total_profit:,.2f} का शुद्ध लाभ दिया है।"
+                elif lang == "ta":
+                    reply = f"உங்கள் கடையில் அதிக லாபம் தரும் பொருள் {top_profit_prod.name}. இதன் லாப வரம்பு {top_profit_prod.margin}% மற்றும் இதுவரை {currency}{top_profit_prod.total_profit:,.2f} லாபம் ஈட்டியுள்ளது."
+                elif lang == "ml":
+                    reply = f"കടയിൽ ഏറ്റവും കൂടുതൽ ലാഭം നൽകുന്ന ഉൽപ്പന്നം {top_profit_prod.name} ആണ്. {top_profit_prod.margin}% മാർജിനോടെ ഇതുവരെ {currency}{top_profit_prod.total_profit:,.2f} ലാഭം ലഭിച്ചു."
+                else:
+                    reply = f"Your most profitable item is {top_profit_prod.name} with a {top_profit_prod.margin}% margin and {currency}{top_profit_prod.total_profit:,.2f} in total profit so far. Current stock is {top_profit_prod.stock} units."
+                return self._format_result(reply, "Highest Profit Product", cards, f"{lang}-IN")
+
+        # =========================================================================
+        # 5. QUERY: TOP SELLING / BEST SELLERS (Multilingual)
+        # =========================================================================
+        is_top_seller_query = (
+            any(w in q_lower for w in ["top selling", "best seller", "best sellers", "most sold", "top products", "highest sales", "best selling"])
+            or any(w in query for w in ["ఎక్కువ అమ్మకాలు", "ఎక్కువగా అమ్ముడైన", "టాప్ సేల్స్", "బెస్ట్ సెల్లింగ్", "బాగా అమ్ముడయ్యే"])
+            or any(w in query for w in ["सबसे ज्यादा बिकने वाला", "टॉप सेलिंग", "बेस्ट सेलर", "ज्यादा बिक्री"])
+            or any(w in query for w in ["அதிக விற்பனையான", "டாப் செல்லிங்", "பெஸ்ட் செல்லர்"])
+            or any(w in query for w in ["കൂടുതൽ വിറ്റ", "ടോപ്പ് സെല്ലിംഗ്", "ബെസ്റ്റ് സെല്ലർ"])
+        )
+
+        if is_top_seller_query:
+            top_seller_prod = max(all_products, key=lambda x: (x.units_sold or 0), default=None)
+            if top_seller_prod:
+                top_items = sorted(all_products, key=lambda x: (x.units_sold or 0), reverse=True)[:3]
+                for p in top_items:
+                    cards.append(self._product_to_card(p))
+
+                if lang == "te":
+                    reply = f"మీ స్టోర్‌లో అత్యధికంగా అమ్ముడవుతున్న వస్తువు {top_seller_prod.name}. ఇప్పటివరకు {top_seller_prod.units_sold} యూనిట్లు అమ్ముడై, మొత్తం {currency}{top_seller_prod.revenue:,.2f} సేల్స్ వచ్చాయి. ఇంకా {top_seller_prod.stock} యూనిట్లు స్టాక్ ఉంది."
+                elif lang == "hi":
+                    reply = f"आपकी दुकान में सबसे ज्यादा बिकने वाला आइटम {top_seller_prod.name} है। अब तक {top_seller_prod.units_sold} यूनिट्स बिक चुकी हैं और कुल {currency}{top_seller_prod.revenue:,.2f} की sales हुई है।"
+                elif lang == "ta":
+                    reply = f"உங்கள் கடையில் அதிகம் விற்பனையான பொருள் {top_seller_prod.name}. இதுவரை {top_seller_prod.units_sold} அலகுகள் விற்பனையாகி, {currency}{top_seller_prod.revenue:,.2f} விற்பனை ஈட்டியுள்ளது."
+                elif lang == "ml":
+                    reply = f"കടയിൽ ഏറ്റവും കൂടുതൽ വിറ്റഴിഞ്ഞ സാധനം {top_seller_prod.name} ആണ്. ഇതുവരെ {top_seller_prod.units_sold} യൂണിറ്റുകൾ വിറ്റുപോയി, {currency}{top_seller_prod.revenue:,.2f} രൂപയുടെ sales നടന്നു."
+                else:
+                    reply = f"Your top-selling product is {top_seller_prod.name} with {top_seller_prod.units_sold} units sold and {currency}{top_seller_prod.revenue:,.2f} in revenue. Current stock: {top_seller_prod.stock} units."
+                return self._format_result(reply, "Top Selling Product", cards, f"{lang}-IN")
+
+        # =========================================================================
+        # 6. QUERY: LOW STOCK / REORDER (Multilingual)
         # =========================================================================
         is_low_stock_query = (
             any(w in q_lower for w in ["reorder", "restock", "out of stock", "critical", "shortage", "low stock"])
             or ("low" in q_lower and "stock" in q_lower)
-            or any(w in query for w in ["తక్కువ", "స్టాక్ తక్కువ", "రీఆర్డర్"])
-            or any(w in query for w in ["कम स्टॉक", "स्टॉक कम", "खत्म"])
+            or any(w in query for w in ["తక్కువ", "స్టాక్ తక్కువ", "రీఆర్డర్", "తక్కువగా ఉన్న"])
+            or any(w in query for w in ["कम स्टॉक", "स्टॉक कम", "खत्म", "कम सामान"])
             or any(w in query for w in ["குறைந்த இருப்பு", "கம்மி", "தீர்ந்து"])
             or any(w in query for w in ["കുറഞ്ഞ സ്റ്റോക്ക്", "തീർന്നു"])
         )
         
         specific_prod_match = None
-        if not is_low_stock_query and not any(w in q_lower for w in ["highest profit", "top seller", "best seller", "top selling", "most profit"]):
+        if not is_low_stock_query:
             specific_prod_match = self._find_matching_product(query, all_products)
 
         if is_low_stock_query and not specific_prod_match:
@@ -284,7 +351,37 @@ class RuleBasedAssistantEngine:
             return self._format_result(reply, "Inventory Status", cards, f"{lang}-IN")
 
         # =========================================================================
-        # 5. QUERY: SPECIFIC PRODUCT INQUIRY / STOCK / PRICE (Multilingual)
+        # 7. QUERY: TOTAL BUSINESS / STORE PERFORMANCE (Multilingual)
+        # =========================================================================
+        is_overall_sales_query = (
+            any(w in q_lower for w in ["total sales", "overall sales", "total revenue", "how is business", "store revenue", "business summary"])
+            or any(w in query for w in ["మొత్తం సేల్స్", "మొత్తం అమ్మకాలు", "మొత్తం కలెక్షన్", "వ్యాపారం ఎలా ఉంది", "మొత్తం బిజినెస్"])
+            or any(w in query for w in ["कुल बिक्री", "कुल सेल्स", "व्यापार कैसा है", "कुल कमाई"])
+            or any(w in query for w in ["மொத்த விற்பனை", "வியாபாரம் எப்படி", "மொத்த வருவாய்"])
+            or any(w in query for w in ["ആകെ വിൽപ്പന", "ബിസിനസ്സ് എങ്ങനെ", "ആകെ വരുമാനം"])
+        )
+
+        if is_overall_sales_query and not specific_prod_match:
+            total_rev = sum(p.revenue or 0.0 for p in all_products)
+            total_units = sum(p.units_sold or 0 for p in all_products)
+            top_prods = sorted(all_products, key=lambda x: x.revenue or 0.0, reverse=True)[:3]
+            for p in top_prods:
+                cards.append(self._product_to_card(p))
+
+            if lang == "te":
+                reply = f"మీ స్టోర్‌లో ఇప్పటివరకు మొత్తం అమ్మకాలు {currency}{total_rev:,.2f} నమోదు అయ్యాయి. మొత్తం {total_units} యూనిట్లు అమ్ముడయ్యాయి మరియు {len(all_products)} రకాల ఉత్పత్తులు ఉన్నాయి."
+            elif lang == "hi":
+                reply = f"आपकी दुकान में अब तक कुल {currency}{total_rev:,.2f} की बिक्री हुई है। {total_units} यूनिट्स बिक चुके हैं और कुल {len(all_products)} तरह के सामान उपलब्ध हैं।"
+            elif lang == "ta":
+                reply = f"உங்கள் கடையில் இதுவரை மொத்த விற்பனை {currency}{total_rev:,.2f} மற்றும் {total_units} அலகுகள் விற்பனையாகியுள்ளன."
+            elif lang == "ml":
+                reply = f"കടയിൽ ഇതുവരെ ആകെ {currency}{total_rev:,.2f} വിൽപ്പന നടന്നു, {total_units} യൂണിറ്റുകൾ വിറ്റുപോയി."
+            else:
+                reply = f"Your store has generated {currency}{total_rev:,.2f} in total sales so far, with {total_units} units sold across {len(all_products)} items."
+            return self._format_result(reply, "Store Performance", cards, f"{lang}-IN")
+
+        # =========================================================================
+        # 8. QUERY: SPECIFIC PRODUCT INQUIRY / STOCK / PRICE (Multilingual)
         # =========================================================================
         if not specific_prod_match:
             specific_prod_match = self._find_matching_product(query, all_products)
@@ -305,7 +402,7 @@ class RuleBasedAssistantEngine:
             return self._format_result(reply, "Product Information", cards, f"{lang}-IN")
 
         # =========================================================================
-        # 6. GENERAL GREETING & STORE OVERVIEW
+        # 9. GENERAL GREETING & STORE OVERVIEW
         # =========================================================================
         total_rev = sum(p.revenue or 0.0 for p in all_products)
         low_items_count = len([p for p in all_products if (p.stock or 0) <= (p.min_stock or 15)])
@@ -389,24 +486,57 @@ class RuleBasedAssistantEngine:
 
         # Today's sales (multilingual)
         today_keywords = [
-            "today", "todays sales", "today sales",
-            "ఈ రోజు", "ఈరోజు", "నేడు",
-            "आज", "आजकी", "आज की बिक्री", "आज की sales",
+            "today", "todays sales", "today sales", "todays orders",
+            "ఈ రోజు", "ఈరోజు", "నేడు", "ఇవాళ",
+            "आज", "आजकी", "आज की बिक्री", "आज की sales", "आज के आर्डर",
             "இன்று", "இன்றைய விற்பனை", "இன்று sales",
             "ഇന്ന്", "ഇന്നത്തെ sales", "ഇന്നത്തെ വിൽപ്പന"
         ]
         if any(w in query or w in q for w in today_keywords):
             return True
 
+        # Highest profit (multilingual)
+        profit_keywords = [
+            "highest profit", "most profit", "best profit", "highest margin", "most profitable", "best margin", "top profit",
+            "ఎక్కువ లాభం", "అత్యధిక లాభం", "లాభదాయకమైన", "లాభం ఇచ్చే", "లాభం",
+            "सबसे ज्यादा मुनाफा", "ज्यादा मुनाफा", "अधिक लाभ", "हाई प्रॉफिट", "मुनाफे वाला", "मुनाफा",
+            "அதிக லாபம்", "அதிக லாபகரமான",
+            "കൂടുതൽ ലാഭം", "ഏറ്റവും ലാഭം"
+        ]
+        if any(w in query or w in q for w in profit_keywords):
+            return True
+
+        # Top selling (multilingual)
+        top_selling_keywords = [
+            "top selling", "best seller", "best sellers", "most sold", "top products", "highest sales", "best selling",
+            "ఎక్కువ అమ్మకాలు", "ఎక్కువగా అమ్ముడైన", "టాప్ సేల్స్", "బెస్ట్ సెల్లింగ్", "బాగా అమ్ముడయ్యే",
+            "सबसे ज्यादा बिकने वाला", "टॉप सेलिंग", "बेस्ट सेलर", "ज्यादा बिक्री",
+            "அதிக விற்பனையான", "டாப் செல்லிங்", "பெஸ்ட் செல்லர்",
+            "കൂടുതൽ വിറ്റ", "ടോപ്പ് സെല്ലിംഗ്", "ബെസ്റ്റ് സെല്ലർ"
+        ]
+        if any(w in query or w in q for w in top_selling_keywords):
+            return True
+
         # Low stock (multilingual)
         low_stock_keywords = [
             "low stock", "stock low", "out of stock", "reorder",
-            "తక్కువ స్టాక్", "స్టాక్ తక్కువ",
-            "कम स्टॉक", "स्टॉक कम", "खत्म",
-            "குறைந்த இருப்பு", "இருப்பு கம்மி",
-            "കുറഞ്ഞ സ്റ്റോക്ക്", "സ്റ്റോക്ക് കുറവ്"
+            "తక్కువ స్టాక్", "స్టాక్ తక్కువ", "తక్కువగా ఉన్న",
+            "कम स्टॉक", "स्टॉक कम", "खत्म", "कम सामान",
+            "குறைந்த இருப்பு", "இருப்பு கம்மி", "தீர்ந்து",
+            "കുറഞ്ഞ സ്റ്റോക്ക്", "സ്റ്റോക്ക് കുറവ്", "തീർന്നു"
         ]
         if any(w in query or w in q for w in low_stock_keywords):
+            return True
+
+        # Total revenue / store performance (multilingual)
+        overall_keywords = [
+            "total sales", "overall sales", "total revenue", "how is business", "store summary",
+            "మొత్తం సేల్స్", "మొత్తం అమ్మకాలు", "మొత్తం కలెక్షన్", "వ్యాపారం ఎలా ఉంది", "మొత్తం బిజినెస్",
+            "कुल बिक्री", "कुल सेल्स", "व्यापार कैसा है", "कुल कमाई",
+            "மொத்த விற்பனை", "வியாபாரம் எப்படி", "மொத்த வருவாய்",
+            "ആകെ വിൽപ്പന", "ബിസിനസ്സ് എങ്ങനെ", "ആകെ വരുമാനം"
+        ]
+        if any(w in query or w in q for w in overall_keywords):
             return True
 
         # Specific product inquiry (multilingual)

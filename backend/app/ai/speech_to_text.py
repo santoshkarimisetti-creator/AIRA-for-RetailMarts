@@ -48,10 +48,13 @@ SUPPORTED_LANGUAGES = {"te", "hi", "en", "ta", "ml"}
 class LocalSpeechToTextEngine:
     _instance: Optional['LocalSpeechToTextEngine'] = None
 
-    def __init__(self, model_size: str = "small", device: str = "cpu", compute_type: str = "int8"):
+    def __init__(self, model_size: str = "small", device: Optional[str] = None, compute_type: Optional[str] = None):
+        import ctranslate2
+        has_cuda = ctranslate2.get_cuda_device_count() > 0
+
         self.model_size = os.getenv("WHISPER_MODEL", model_size)
-        self.device = os.getenv("WHISPER_DEVICE", device)
-        self.compute_type = os.getenv("WHISPER_COMPUTE_TYPE", compute_type)
+        self.device = os.getenv("WHISPER_DEVICE", "cuda" if has_cuda else "cpu")
+        self.compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "float16" if has_cuda else "int8")
         self.model: Optional[WhisperModel] = None
         self._is_loading = False
 
@@ -62,7 +65,7 @@ class LocalSpeechToTextEngine:
         return cls._instance
 
     def load_model(self) -> WhisperModel:
-        """Loads and caches the faster-whisper model in memory (singleton)."""
+        """Loads and caches the faster-whisper model in GPU VRAM (or CPU) in memory (singleton)."""
         if self.model is None and not self._is_loading:
             self._is_loading = True
             try:
@@ -73,12 +76,13 @@ class LocalSpeechToTextEngine:
                     compute_type=self.compute_type,
                     cpu_threads=4
                 )
-                logger.info("faster-whisper model loaded successfully!")
+                logger.info(f"faster-whisper model loaded successfully on {self.device}!")
             except Exception as e:
-                logger.error(f"Failed to load {self.model_size} model: {e}. Falling back to 'base' model...")
+                logger.error(f"Failed to load {self.model_size} model on {self.device}: {e}. Falling back to 'cpu'...")
                 try:
-                    self.model_size = "base"
-                    self.model = WhisperModel("base", device="cpu", compute_type="int8")
+                    self.device = "cpu"
+                    self.compute_type = "int8"
+                    self.model = WhisperModel("small", device="cpu", compute_type="int8", cpu_threads=4)
                 except Exception as fallback_err:
                     logger.critical(f"Fallback model also failed: {fallback_err}")
                     raise fallback_err

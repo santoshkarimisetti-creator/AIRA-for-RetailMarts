@@ -142,6 +142,9 @@ export default function FloatingAssistant() {
     if (!isOpen) setIsOpen(true)
     setIsLoading(true)
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 25000)
+
     try {
       const response = await fetch('http://127.0.0.1:8000/api/ai/chat', {
         method: 'POST',
@@ -149,8 +152,14 @@ export default function FloatingAssistant() {
         body: JSON.stringify({
           message: query,
           language: selectedLang
-        })
+        }),
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`)
+      }
       const result = await response.json()
       
       const aiMsg = {
@@ -169,12 +178,16 @@ export default function FloatingAssistant() {
         handleSpeak(result.speech_text || result.reply)
       }
     } catch (err) {
+      clearTimeout(timeoutId)
       console.error('Error querying AIRA:', err)
       setIsLoading(false)
+      const isTimeout = err.name === 'AbortError'
       const errorMsg = {
         id: Date.now() + 1,
         sender: 'ai',
-        text: "Could not reach local AIRA assistant. Ensure backend is running on port 8000.",
+        text: isTimeout 
+          ? "Request timed out after 25 seconds. Please ensure AIRA backend and Ollama are running."
+          : "Could not reach local AIRA assistant. Please ensure the backend is running on port 8000.",
         model: 'AIRA Assistant',
         cards: null
       }
@@ -217,6 +230,9 @@ export default function FloatingAssistant() {
         setIsLoading(true)
         setVoiceStatusText(`Transcribing ${activeLangObj.label} speech...`)
 
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 25000)
+
         try {
           const formData = new FormData()
           formData.append('file', audioBlob, 'audio_recording.webm')
@@ -224,8 +240,14 @@ export default function FloatingAssistant() {
 
           const response = await fetch('http://127.0.0.1:8000/api/ai/voice', {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
           })
+          clearTimeout(timeoutId)
+
+          if (!response.ok) {
+            throw new Error(`Server returned HTTP ${response.status}`)
+          }
           const data = await response.json()
           setIsLoading(false)
           setVoiceStatusText('')
@@ -255,13 +277,17 @@ export default function FloatingAssistant() {
             setMessages(prev => [...prev, errorNotice])
           }
         } catch (err) {
+          clearTimeout(timeoutId)
           console.error('Voice processing error:', err)
           setIsLoading(false)
           setVoiceStatusText('')
+          const isTimeout = err.name === 'AbortError'
           const errorMsg = {
             id: Date.now(),
             sender: 'ai',
-            text: "Failed to connect to local voice endpoint at http://127.0.0.1:8000/api/ai/voice.",
+            text: isTimeout
+              ? "Voice recognition timed out after 25 seconds. Please try a shorter question."
+              : "Failed to connect to local voice endpoint. Please ensure the backend is running on port 8000.",
             model: 'AIRA Assistant'
           }
           setMessages(prev => [...prev, errorMsg])
