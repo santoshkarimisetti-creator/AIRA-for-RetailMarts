@@ -8,6 +8,7 @@ dist/
 dist-ssr/
 build/
 *.local
+.vite/
 
 # Python
 __pycache__/
@@ -21,11 +22,16 @@ ENV/
 env.bak/
 venv.bak/
 .venv/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Environment Variables & Secrets
 .env
 *.env
 !.env.example
+*.pem
+*.key
 
 # Database
 *.sqlite
@@ -45,14 +51,22 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Temporary scratch files, installers & prompt artifacts
+# Audio caches, media & temporary test files
+*.webm
+*.wav
+*.m4a
+*.mp3
+*.tmp
+*.temp
+scratch/
+temp/
+tmp/
+.cache/
+
+# Executables & Installers
+*.exe
 Plan
 LOCAL_AI_INTEGRATION_DETAILS.md
 check_all_pages.py
 download_ollama.py
 install_ollama.ps1
-*.exe
-*.webm
-*.wav
-*.m4a
-*.tmp

@@ -22,7 +22,7 @@ AIRA is a full-stack, enterprise-grade AI retail management operating system and
             ▼                                  ▼    ▼                                  ▼
 ┌─────────────────────────┐  ┌─────────────────────────────────┐  ┌───────────────────────────────────┐
 │  PostgreSQL Database    │  │ Local GPU STT (faster-whisper)  │  │ Local Ollama LLM (gemma3:4b)      │
-│  (100 Products, 13k+    │  │ + Neural Audio TTS Streamer     │  │ Locked in VRAM during server run; │
+│  (100 Products, 13k+    │  │ + Concurrent Chunked TTS Audio  │  │ Locked in VRAM during server run; │
 │   Live Sales Records)   │  │ (Telugu, Hindi, Tamil, ML, EN)  │  │ Auto-unloaded on server shutdown  │
 └─────────────────────────┘  └─────────────────────────────────┘  └───────────────────────────────────┘
 ```
@@ -34,22 +34,25 @@ AIRA is a full-stack, enterprise-grade AI retail management operating system and
   * **Sales**: Today's sales & orders, total store revenue, top-selling products, least-sold / low sales items.
   * **Prices**: Specific product price checks (*"price of ghee"*, *"నెయ్యి ధర ఎంత?"*), highest priced item, cheapest item.
   * **Stocks**: Specific product stock inquiries (*"stock of milk"*), low-stock warnings, out-of-stock items, surplus stock, and live restock/sale operations.
+* **15 Dynamic Quick-Suggestion Pills**:
+  The Floating Assistant drawer features a horizontally scrollable chip deck populated with all 15 partitioned questions dynamically localized into the user's selected language.
 * **Local Ollama Intelligence (`gemma3:4b`)**:
   Un-templated, complex, or open-ended analytical questions are routed to local Ollama to safely generate PostgreSQL SELECT queries and synthesize conversational responses strictly in the user's language.
 
 ### 2. ⚡ Autonomous Ollama GPU Lifecycle (Zero VRAM Waste)
 * **Warm on Backend Startup**: As soon as the FastAPI server starts, it preloads `gemma3:4b` into GPU VRAM with indefinite `keep_alive: -1`.
-* **Zero Idle Timeout**: A background heartbeat thread continuously maintains the active model state so it never becomes idle or drops out while the backend is active.
+* **Zero Idle Timeout**: A background heartbeat thread continuously maintains the active model state every 2 minutes so it never becomes idle or drops out while the backend is active.
 * **Auto-Eviction on Shutdown**: When the FastAPI server stops (`Ctrl+C`), the lifespan handler immediately sends `keep_alive: 0`, freeing 100% of GPU VRAM.
 
-### 3. 🎙️ Multilingual Speech Recognition & Native Audio Synthesis
+### 3. 🎙️ Multilingual Speech Recognition & Concurrent Neural TTS
 * **GPU-Accelerated STT (`faster-whisper`)**: Real-time voice transcription in ~0.8s on CUDA without timeouts.
 * **Native Browser STT**: Web Speech recognition streaming regional language tags (`te-IN`, `hi-IN`, `ta-IN`, `ml-IN`, `en-IN`).
-* **Neural TTS Audio Streamer (`/api/ai/tts`)**: Ensures every single Telugu, Hindi, Tamil, and Malayalam word is pronounced with authentic native inflection—no skipped words, no missed characters.
+* **Concurrent Chunked Neural TTS Streamer (`/api/ai/tts`)**:
+  Intelligently segments text at word boundaries ($\le 85$ chars) and fetches audio streams concurrently via `ThreadPoolExecutor` to eliminate Google TTS length limits. Ensures every single Telugu, Hindi, Tamil, and Malayalam word is pronounced with authentic native inflection—no skipped words, no missed characters.
 
 ### 4. 🎯 One-Click Targeted Inventory Restock Navigation
 * Clicking **Reorder** or **Restock** from AI Chat, Alerts, or AI Insights immediately redirects to `/app/inventory?highlight={productId}`.
-* Automatically resets filters, smoothly scrolls the target card directly into the **center of the screen**, and highlights it with a glowing cyan selection ring and a **"Target Item"** badge.
+* Automatically resets filters, smoothly scrolls the target card directly into the **center of the screen**, and highlights it with a glowing cyan selection ring and an animated **"Target Item"** badge.
 
 ### 5. 🛒 Express Supermarket POS Counter
 * Camera barcode scanner (EAN-13, EAN-8, UPC, Code 128, QR Code) with horizontal/vertical orientation controls.
@@ -58,6 +61,30 @@ AIRA is a full-stack, enterprise-grade AI retail management operating system and
 
 ### 6. 🏬 3D Store Digital Twin
 * Interactive Three.js isometric 3D physical shelf mapping displaying live departmental stock fill percentages, critical shelf levels, and restock prompts.
+
+---
+
+## 📋 The 15 Assistant Questions (Grouped by Category)
+
+| Domain | # | Question Intent | English Suggestion Pill | Telugu Suggestion Pill (తెలుగు) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sales** | 1 | Today's Sales | *"What are today's sales?"* | *"ఈ రోజు అమ్మకాలు ఎంత?"* |
+| | 2 | Low Sales / Least Sold | *"Which items sales are very low in our Store"* | *"స్టోర్‌లో తక్కువగా అమ్ముడైన వస్తువులు ఏవి?"* |
+| | 3 | Store Revenue | *"Total sales of the store"* | *"స్టోర్ మొత్తం అమ్మకాలు ఎంత?"* |
+| | 4 | Top Selling Items | *"Which items are top selling?"* | *"ఎక్కువగా అమ్ముడవుతున్న వస్తువులు ఏవి?"* |
+| **Profits** | 5 | Highest Profit | *"Which product gives highest profit?"* | *"ఏ వస్తువు ఎక్కువ లాభం ఇస్తుంది?"* |
+| | 6 | Lowest Profit | *"Which items have the lowest profit?"* | *"తక్కువ లాభం ఇచ్చే వస్తువులు ఏవి?"* |
+| | 7 | Best Margins | *"Highest margin items"* | *"అత్యధిక మార్జిన్ ఉన్న వస్తువులు ఏవి?"* |
+| **Prices** | 8 | Specific Price Check | *"Price of ghee?"* | *"నెయ్యి ధర ఎంత?"* |
+| | 9 | Most Expensive Item | *"Most expensive product"* | *"అత్యంత ఖరీదైన వస్తువు ఏది?"* |
+| | 10 | Cheapest Item | *"Cheapest product in store"* | *"అతి తక్కువ ధర గల వస్తువు ఏది?"* |
+| **Stocks** | 11 | Specific Stock Check | *"How much stock of milk is left?"* | *"పాలు ఎంత స్టాక్ ఉంది?"* |
+| | 12 | Low Stock Reorder | *"Which items are low in stock?"* | *"ఏ వస్తువుల స్టాక్ తక్కువగా ఉంది?"* |
+| | 13 | Out of Stock | *"Which items are out of stock?"* | *"స్టాక్ పూర్తిగా అయిపోయిన వస్తువులు ఏవి?"* |
+| | 14 | Plenty / Surplus Stock | *"Items with plenty of stock"* | *"ఎక్కువ స్టాక్ ఉన్న వస్తువులు ఏవి?"* |
+| | 15 | Live Inventory Action | *"Restock 20 units of ghee"* | *"20 యూనిట్ల నెయ్యి యాడ్ చేయండి"* |
+
+*(Also localized into Hindi, Tamil, and Malayalam in the assistant).*
 
 ---
 
@@ -75,7 +102,7 @@ Before starting, ensure you have the following installed:
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/your-username/AIRA.git
+git clone https://github.com/santoshkarimisetti-creator/AIRA-for-RetailMarts.git
 cd AIRA
 ```
 
@@ -99,7 +126,7 @@ cd AIRA
    ```bash
    ollama pull gemma3:4b
    ```
-   *(Note: You do not need to run a manual script to keep Ollama alive. When the AIRA backend starts, it will automatically lock the model in VRAM and release it when you stop the backend).*
+   *(Note: You do not need to keep Ollama manually alive. When the AIRA backend starts, it will automatically lock the model in VRAM and release it when you stop the backend).*
 
 ---
 
@@ -170,21 +197,6 @@ Located in `backend/.env`:
 | `STORE_NAME` | `AIRA Retail Mart` | Default name of the retail store |
 | `STORE_CURRENCY`| `INR` | Store currency symbol (`₹`) |
 | `PORT` | `8000` | Backend API port |
-
----
-
-## 🧪 Testing Common Queries
-
-Once both servers are running, test these voice or text queries in the Floating Assistant:
-
-| Domain | Query | Language | Expected Result |
-| :--- | :--- | :--- | :--- |
-| **Sales** | *"which items sales are very low in our Store"* | English | Returns the 4 lowest-selling items + product cards in **< 0.03s** |
-| **Prices** | *"Price of ghee?"* | English | Returns Amul Pure Ghee 1L Tin (`₹650.00`) in **< 0.01s** |
-| **Sales** | *"ఈ రోజు అమ్మకాలు ఎంత?"* | Telugu | Speaks and displays today's sales in authentic Telugu |
-| **Stocks** | *"నెయ్యి ధర ఎంత?"* | Telugu | Speaks Amul Pure Ghee price in pristine native Telugu audio |
-| **Profits**| *"Which product gives highest profit?"* | English | Returns Saffola Gold Oil with exact total profit and margin |
-| **Operations**| *"Restock 20 units of ghee"* | English | Commits live inventory restock directly to PostgreSQL |
 
 ---
 
