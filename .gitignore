@@ -63,6 +63,13 @@ temp/
 tmp/
 .cache/
 
+# Presentations, Spreadsheets & Internship Assets
+*.pptx
+*.ppt
+*.xlsx
+*.xls
+pr_images/
+
 # Executables & Installers
 *.exe
 Plan
