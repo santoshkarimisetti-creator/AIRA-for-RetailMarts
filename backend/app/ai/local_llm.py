@@ -15,6 +15,7 @@ import os
 import re
 import json
 import logging
+import threading
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 import httpx
@@ -99,6 +100,71 @@ class LocalOllamaAssistant:
             pass
         return []
 
+    def warmup(self) -> None:
+        """Pre-warms the model in GPU VRAM with indefinite keep_alive (-1) while backend is running."""
+        try:
+            available = self.get_available_models()
+            model_to_use = self.default_model
+            matched = [m for m in available if self.default_model in m]
+            if matched:
+                model_to_use = matched[0]
+            elif available:
+                model_to_use = available[0]
+
+            self.client.post(
+                f"{self.base_url}/api/generate",
+                json={"model": model_to_use, "keep_alive": -1},
+                timeout=30.0
+            )
+            logger.info(f"Ollama model '{model_to_use}' kept active in GPU VRAM while backend is running.")
+            self._start_heartbeat(model_to_use)
+        except Exception as e:
+            logger.warning(f"Ollama warmup notice: {e}")
+
+    def _start_heartbeat(self, model_name: str) -> None:
+        """Background thread ensuring Ollama never unloads while FastAPI backend is running."""
+        if hasattr(self, "_heartbeat_active") and self._heartbeat_active:
+            return
+        self._heartbeat_active = True
+        self._heartbeat_stop = threading.Event()
+
+        def _heartbeat_loop():
+            while not self._heartbeat_stop.wait(120):  # Every 2 minutes
+                try:
+                    self.client.post(
+                        f"{self.base_url}/api/generate",
+                        json={"model": model_name, "keep_alive": -1},
+                        timeout=5.0
+                    )
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_heartbeat_loop, daemon=True)
+        t.start()
+
+    def unload_model(self) -> None:
+        """Stops heartbeat and evicts model from GPU VRAM when backend shuts down."""
+        if hasattr(self, "_heartbeat_stop"):
+            self._heartbeat_stop.set()
+        self._heartbeat_active = False
+
+        try:
+            available = self.get_available_models()
+            models_to_unload = [self.default_model]
+            matched = [m for m in available if self.default_model in m]
+            if matched:
+                models_to_unload.append(matched[0])
+
+            for m in set(models_to_unload):
+                self.client.post(
+                    f"{self.base_url}/api/generate",
+                    json={"model": m, "keep_alive": 0},
+                    timeout=5.0
+                )
+            logger.info("Ollama model successfully unloaded from GPU VRAM on backend shutdown.")
+        except Exception as e:
+            logger.warning(f"Ollama unload notice: {e}")
+
     def _clean_speech_text(self, text_str: str) -> str:
         """Strips symbols, markdown, and emojis for smooth TTS speech."""
         cleaned = re.sub(r'[*_#`~>\[\]]', '', text_str)
@@ -121,16 +187,19 @@ class LocalOllamaAssistant:
             ],
             "stream": False,
             "keep_alive": -1,
-            "options": {"temperature": 0.0, "num_predict": 45, "num_ctx": 1024}
+            "options": {"temperature": 0.0, "num_predict": 120, "num_ctx": 1024}
         }
 
         try:
-            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=25.0)
+            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=35.0)
             if resp.status_code == 200:
                 content = resp.json().get("message", {}).get("content", "").strip()
-                match = re.search(r'```(?:sql)?\s*(SELECT.+?)\s*```', content, re.DOTALL | re.IGNORECASE)
+                match = re.search(r'```(?:sql)?\s*(SELECT.+?)(?:```|$)', content, re.DOTALL | re.IGNORECASE)
                 if match:
-                    return match.group(1).strip()
+                    sql_text = match.group(1).strip()
+                    if not sql_text.endswith(";"):
+                        sql_text += ";"
+                    return sql_text
                 if content.strip().upper().startswith("SELECT"):
                     return content.strip().split(";")[0] + ";"
         except Exception as e:
@@ -180,11 +249,11 @@ class LocalOllamaAssistant:
             ],
             "stream": False,
             "keep_alive": -1,
-            "options": {"temperature": 0.1, "num_predict": 50, "num_ctx": 1024}
+            "options": {"temperature": 0.1, "num_predict": 120, "num_ctx": 1024}
         }
 
         try:
-            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=25.0)
+            resp = self.client.post(f"{self.base_url}/api/chat", json=payload, timeout=35.0)
             if resp.status_code == 200:
                 answer = resp.json().get("message", {}).get("content", "").strip()
                 return answer
@@ -197,21 +266,23 @@ class LocalOllamaAssistant:
         prompt: str,
         db: Session,
         language: str = "en",
-        store_name: str = "AIRA Supermarket"
+        store_name: str = "AIRA Supermarket",
+        preferred_mode: str = "ollama"
     ) -> Dict[str, Any]:
         """
         Main multilingual query entrypoint.
         Supports Telugu (te), Hindi (hi), English (en), Tamil (ta), and Malayalam (ml).
-        1. Checks Rule-Based Engine first for instant (< 50ms) direct responses.
-        2. Routes un-templated questions to Ollama (gemma3:4b).
-        3. Generates safe read-only SQL, executes on PostgreSQL, and synthesizes reply in the user's language.
+        1. Action commands (restock, sell) execute directly on PostgreSQL.
+        2. Natural language queries route to local Ollama LLM (gemma3:4b) when available.
+        3. Seamless, instant fallback to PostgreSQL rule engine if Ollama is offline or fails.
         """
         user_lang = detect_language(prompt, language)
         bcp_lang_tag = f"{user_lang}-IN"
+        q_lower = prompt.lower().strip()
 
-        # Priority Check: Answer instantly (< 50ms) via verified Rule Assistant if query pattern matches
+        # PRIORITY 1: Answer instantly (< 30ms) if rule assistant has the question pattern
         if rule_assistant.can_handle(prompt, db):
-            logger.info(f"Query matched verified pattern. Answering directly in {user_lang} via PostgreSQL rule engine.")
+            logger.info("Question matched verified pattern. Answering instantly (< 30ms) via PostgreSQL Rule Engine.")
             base_result = rule_assistant.execute_and_reply(
                 query=prompt,
                 db=db,
@@ -230,7 +301,7 @@ class LocalOllamaAssistant:
                 "language": bcp_lang_tag
             }
 
-        # Check if Ollama is running and has models
+        # PRIORITY 2: Route un-templated / new / complex questions to local Ollama (gemma3:4b)
         if self.is_ollama_available():
             available = self.get_available_models()
             model_to_use = self.default_model
@@ -240,7 +311,7 @@ class LocalOllamaAssistant:
             elif available:
                 model_to_use = available[0]
 
-            logger.info(f"Ollama running model: {model_to_use}. Translating multilingual query to SQL...")
+            logger.info(f"New query routing to Ollama ({model_to_use}) for custom Text-to-SQL + synthesis...")
             
             # Step 1: Text-to-SQL
             sql = self._generate_sql(prompt, model_to_use)
@@ -264,7 +335,8 @@ class LocalOllamaAssistant:
                             "language": bcp_lang_tag
                         }
 
-        # Step 4: Fallback to ORM Intelligence if Ollama is loading
+        # Step 4: Graceful fallback to PostgreSQL Rule Engine if Ollama is offline or SQL was empty
+        logger.info("Falling back to PostgreSQL Rule Engine.")
         base_result = rule_assistant.execute_and_reply(
             query=prompt,
             db=db,

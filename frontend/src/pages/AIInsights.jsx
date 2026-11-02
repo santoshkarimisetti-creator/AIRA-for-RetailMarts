@@ -160,7 +160,9 @@ export default function AIInsights() {
 
                 <button 
                   onClick={() => {
-                    if (insight.actionUrl) {
+                    if (insight.productId) {
+                      navigate(`/app/inventory?highlight=${insight.productId}`, { state: { highlightProductId: insight.productId } })
+                    } else if (insight.actionUrl) {
                       navigate(insight.actionUrl)
                     } else {
                       navigate('/app/inventory')

@@ -7,7 +7,8 @@ import {
 } from 'lucide-react'
 import { 
   speakResponse, stopSpeaking, 
-  getAIRAConfig, saveAIRAConfig 
+  getAIRAConfig, saveAIRAConfig,
+  isSpeechRecognitionSupported, createSpeechRecognizer
 } from '../services/geminiService'
 
 const ASSISTANT_LANGUAGES = [
@@ -89,6 +90,7 @@ export default function FloatingAssistant() {
   ])
 
   const messagesEndRef = useRef(null)
+  const speechRecognizerRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
 
@@ -143,7 +145,7 @@ export default function FloatingAssistant() {
     setIsLoading(true)
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 25000)
+    const timeoutId = setTimeout(() => controller.abort(), 45000)
 
     try {
       const response = await fetch('http://127.0.0.1:8000/api/ai/chat', {
@@ -151,7 +153,8 @@ export default function FloatingAssistant() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
-          language: selectedLang
+          language: selectedLang,
+          mode: 'ollama'
         }),
         signal: controller.signal
       })
@@ -186,7 +189,7 @@ export default function FloatingAssistant() {
         id: Date.now() + 1,
         sender: 'ai',
         text: isTimeout 
-          ? "Request timed out after 25 seconds. Please ensure AIRA backend and Ollama are running."
+          ? "Request timed out after 45 seconds. Please ensure Ollama is active on port 11434."
           : "Could not reach local AIRA assistant. Please ensure the backend is running on port 8000.",
         model: 'AIRA Assistant',
         cards: null
@@ -195,8 +198,56 @@ export default function FloatingAssistant() {
     }
   }
 
-  // Real Local Audio Recording & Multilingual faster-whisper Recognition
+  // Live Multilingual Browser Recognition with Local Faster-Whisper Fallback
   const startVoiceRecording = async () => {
+    handleStopSpeaking()
+
+    // 1. High-Accuracy Browser Native Speech Recognition (Google/Edge Engine: te-IN, hi-IN, en-IN, ta-IN, ml-IN)
+    if (isSpeechRecognitionSupported()) {
+      try {
+        const recognizer = createSpeechRecognizer({
+          language: activeLangObj.bcp,
+          onStart: () => {
+            setIsListening(true)
+            setVoiceStatusText(`Listening (${activeLangObj.label})... Speak now`)
+          },
+          onInterim: (interim) => {
+            setVoiceStatusText(`Heard: "${interim}"`)
+            setInputValue(interim)
+          },
+          onResult: (finalText) => {
+            setIsListening(false)
+            setVoiceStatusText('')
+            setInputValue('')
+            if (finalText && finalText.trim()) {
+              handleSendQuestion(finalText.trim())
+            }
+          },
+          onError: (event) => {
+            console.warn('Speech recognition notice:', event)
+            setIsListening(false)
+            setVoiceStatusText('')
+            if (event?.error === 'not-allowed') {
+              setVoiceStatusText('Microphone permission denied.')
+              setTimeout(() => setVoiceStatusText(''), 3000)
+            }
+          },
+          onEnd: () => {
+            setIsListening(false)
+          }
+        })
+
+        if (recognizer) {
+          speechRecognizerRef.current = recognizer
+          recognizer.start()
+          return
+        }
+      } catch (err) {
+        console.warn('Web Speech API fallback to backend:', err)
+      }
+    }
+
+    // 2. Fallback to Local Faster-Whisper Backend if Web Speech API is not available
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -231,14 +282,15 @@ export default function FloatingAssistant() {
         setVoiceStatusText(`Transcribing ${activeLangObj.label} speech...`)
 
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 25000)
+        const timeoutId = setTimeout(() => controller.abort(), 15000)
 
         try {
           const formData = new FormData()
           formData.append('file', audioBlob, 'audio_recording.webm')
           formData.append('language', selectedLang)
 
-          const response = await fetch('http://127.0.0.1:8000/api/ai/voice', {
+          // Step 1: Fast dedicated Whisper Speech-to-Text (~0.8s on GPU)
+          const response = await fetch('http://127.0.0.1:8000/api/ai/transcribe', {
             method: 'POST',
             body: formData,
             signal: controller.signal
@@ -252,33 +304,20 @@ export default function FloatingAssistant() {
           setIsLoading(false)
           setVoiceStatusText('')
 
-          if (data.transcript) {
-            const userMsg = { id: Date.now(), sender: 'user', text: data.transcript }
-            const aiMsg = {
-              id: Date.now() + 1,
-              sender: 'ai',
-              text: data.reply,
-              model: data.model || 'faster-whisper + Local LLM',
-              cards: data.cards || null,
-              language: data.language
-            }
-            setMessages(prev => [...prev, userMsg, aiMsg])
-
-            if (config.voiceEnabled && (data.speech_text || data.reply)) {
-              handleSpeak(data.speech_text || data.reply)
-            }
+          if (data.transcript && data.transcript.trim()) {
+            handleSendQuestion(data.transcript.trim())
           } else {
             const errorNotice = {
               id: Date.now(),
               sender: 'ai',
-              text: data.reply || "Could not detect clear speech. Please click the mic and try again.",
+              text: "Could not detect clear speech. Please hold the microphone closer and try asking again.",
               model: 'AIRA Assistant'
             }
             setMessages(prev => [...prev, errorNotice])
           }
         } catch (err) {
           clearTimeout(timeoutId)
-          console.error('Voice processing error:', err)
+          console.error('Voice transcription error:', err)
           setIsLoading(false)
           setVoiceStatusText('')
           const isTimeout = err.name === 'AbortError'
@@ -286,8 +325,8 @@ export default function FloatingAssistant() {
             id: Date.now(),
             sender: 'ai',
             text: isTimeout
-              ? "Voice recognition timed out after 25 seconds. Please try a shorter question."
-              : "Failed to connect to local voice endpoint. Please ensure the backend is running on port 8000.",
+              ? "Voice transcription timed out after 15 seconds. Please try again."
+              : "Failed to connect to local transcription endpoint. Please ensure the backend is running on port 8000.",
             model: 'AIRA Assistant'
           }
           setMessages(prev => [...prev, errorMsg])
@@ -306,6 +345,12 @@ export default function FloatingAssistant() {
   }
 
   const stopVoiceRecording = () => {
+    if (speechRecognizerRef.current) {
+      try {
+        speechRecognizerRef.current.stop()
+      } catch (e) {}
+      speechRecognizerRef.current = null
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop()
     }
@@ -517,22 +562,24 @@ export default function FloatingAssistant() {
                         <span>Recommended Actions:</span>
                       </div>
                       {msg.cards.map((prod) => (
-                        <div key={prod.id} className="p-3 rounded-xl bg-[#091524] border border-cyan-500/30 flex items-center justify-between text-xs text-white shadow-sm hover:border-cyan-400/60 transition-colors">
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-9 h-9 rounded-lg shrink-0 border border-slate-700" />
+                        <div key={prod.id} className="p-2 rounded-lg bg-[#091524] border border-cyan-500/20 flex items-center justify-between text-xs text-white shadow-2xs hover:border-cyan-400/50 transition-colors">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-7 h-7 rounded-md shrink-0 border border-slate-700" />
                             <div className="min-w-0">
-                              <h5 className="font-bold text-xs truncate">{prod.name}</h5>
+                              <h5 className="font-semibold text-[11px] truncate">{prod.name}</h5>
                               <span className="text-[10px] text-rose-400 font-mono">
                                 Stock: {prod.stock} (Min: {prod.minStock})
                               </span>
                             </div>
                           </div>
                           <button 
-                            onClick={() => window.location.href = '/app/inventory'} 
-                            className="px-2.5 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-[10px] font-bold text-white rounded-lg shrink-0 shadow-xs flex items-center space-x-1 transition-all"
+                            onClick={() => {
+                              window.location.href = `/app/inventory?highlight=${prod.id}`
+                            }} 
+                            className="px-2 py-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-[9px] font-bold text-white rounded-md shrink-0 shadow-2xs flex items-center space-x-1 transition-all ml-2 cursor-pointer"
                           >
                             <span>Reorder ({prod.orderRecommendation || 30})</span>
-                            <ArrowRight className="w-3 h-3" />
+                            <ArrowRight className="w-2.5 h-2.5" />
                           </button>
                         </div>
                       ))}

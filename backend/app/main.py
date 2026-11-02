@@ -4,6 +4,9 @@ Complete REST API backend with Swagger OpenAPI documentation, JWT auth, PostgreS
 """
 
 import os
+import logging
+import threading
+logger = logging.getLogger("aira.api")
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timedelta, timezone
 import random
@@ -11,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, status, Query, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, Depends, status, Query, File, UploadFile, Form, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -44,6 +47,18 @@ app.add_middleware(
 def startup_event():
     print("[AIRA] Starting AIRA FastAPI Server with Database Integration...")
     init_database()
+    try:
+        if local_assistant.is_ollama_available():
+            threading.Thread(target=local_assistant.warmup, daemon=True).start()
+    except Exception:
+        pass
+
+@app.on_event("shutdown")
+def shutdown_event():
+    try:
+        local_assistant.unload_model()
+    except Exception:
+        pass
 
 # Pydantic Schemas
 class ProductSchema(BaseModel):
@@ -109,6 +124,7 @@ class ChatQuery(BaseModel):
     message: str
     api_key: Optional[str] = None
     model: Optional[str] = "aira-engine"
+    mode: Optional[str] = "ollama"
     language: Optional[str] = "en-IN"
     language_name: Optional[str] = "English (India)"
     store_name: Optional[str] = None
@@ -967,8 +983,41 @@ def ai_chat_assistant(query: ChatQuery, db: Session = Depends(get_db)):
         prompt=query.message,
         db=db,
         language=clean_lang,
-        store_name=store_title
+        store_name=store_title,
+        preferred_mode=query.mode or "ollama"
     )
+
+@app.post("/api/ai/transcribe")
+@app.post("/api/transcribe")
+async def ai_transcribe_audio(
+    file: UploadFile = File(...),
+    language: Optional[str] = Form(None)
+):
+    """
+    Fast Dedicated Speech-to-Text Endpoint.
+    Transcribes recorded audio in ~0.8s on GPU using faster-whisper without running LLM synthesis.
+    """
+    try:
+        audio_bytes = await file.read()
+        if not audio_bytes or len(audio_bytes) < 100:
+            return {"transcript": "", "language": language or "en", "confidence": 0.0, "success": False}
+
+        stt_result = stt_engine.transcribe(audio_bytes, language=language)
+        transcript = stt_result.get("text", "").strip()
+        detected_lang = stt_result.get("language", "en")
+        confidence = stt_result.get("language_probability", 1.0)
+        duration = stt_result.get("duration", 0.0)
+
+        return {
+            "transcript": transcript,
+            "language": detected_lang,
+            "confidence": confidence,
+            "duration": duration,
+            "success": bool(transcript)
+        }
+    except Exception as e:
+        logger.error(f"Error in speech transcription endpoint: {e}")
+        return {"transcript": "", "language": language or "en", "confidence": 0.0, "success": False, "error": str(e)}
 
 @app.post("/api/ai/voice")
 @app.post("/api/voice")
@@ -1034,6 +1083,34 @@ async def ai_voice_assistant(
             "speech_text": "An error occurred while processing voice input.",
             "cards": []
         }
+
+import urllib.request
+import urllib.parse
+
+@app.get("/api/ai/tts")
+@app.get("/api/tts")
+def stream_multilingual_tts(text: str, lang: str = "en"):
+    """
+    Synthesizes and streams crystal-clear native speech audio for Telugu (te), Hindi (hi),
+    Tamil (ta), Malayalam (ml), and English (en) without skipping regional characters or words.
+    """
+    clean_text = text.strip()[:300]
+    if not clean_text:
+        return Response(content=b"", media_type="audio/mpeg")
+
+    lang_code = lang.lower().split("-")[0].split("_")[0]
+    if lang_code not in ["te", "hi", "ta", "ml", "en"]:
+        lang_code = "en"
+
+    tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(clean_text)}&tl={lang_code}&client=tw-ob"
+    req = urllib.request.Request(tts_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+    try:
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
+            audio_bytes = resp.read()
+            return Response(content=audio_bytes, media_type="audio/mpeg")
+    except Exception as e:
+        logger.warning(f"Error fetching TTS audio stream: {e}")
+        return Response(content=b"", status_code=500)
 
 # ----------------- OTP Verification -----------------
 import random

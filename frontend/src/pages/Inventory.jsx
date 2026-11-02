@@ -29,9 +29,18 @@ import {
   Undo2,
   Barcode
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 
 export default function Inventory() {
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+
+  const [productList, setProductList] = useState(() => getUserProducts())
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [selectedStatus, setSelectedStatus] = useState('All')
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [highlightedId, setHighlightedId] = useState(null)
 
   // Load live products from PostgreSQL
   useEffect(() => {
@@ -42,11 +51,26 @@ export default function Inventory() {
     }).catch(err => console.warn('[Inventory] Using local fallback:', err))
   }, [])
 
-  const [productList, setProductList] = useState(() => getUserProducts())
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('All')
-  const [selectedStatus, setSelectedStatus] = useState('All')
-  const [showAddModal, setShowAddModal] = useState(false)
+  // Auto-scroll and highlight target product when redirected from AI chat, Alerts, or Insights
+  useEffect(() => {
+    const targetIdStr = searchParams.get('highlight') || location.state?.highlightProductId
+    if (targetIdStr) {
+      const targetId = Number(targetIdStr)
+      setHighlightedId(targetId)
+      setSelectedCategory('All')
+      setSelectedStatus('All')
+      setSearchTerm('')
+
+      const timer = setTimeout(() => {
+        const el = document.getElementById('product-card-' + targetId)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 350)
+
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams, location.state, productList])
 
   // Edit Price & Details Modal State
   const [showEditPriceModal, setShowEditPriceModal] = useState(false)
@@ -484,7 +508,7 @@ export default function Inventory() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
           {filteredProducts.map((prod) => {
             const fillPercentage = Math.min(100, Math.round((prod.stock / (prod.minStock * 2.5)) * 100))
             const defaultPreset = prod.orderRecommendation || 30
@@ -494,10 +518,24 @@ export default function Inventory() {
             const unitProfit = prod.unitProfit !== undefined ? prod.unitProfit : (prod.price - originalCost)
 
             return (
-              <div key={prod.id} className="p-5 rounded-2xl card-light-interactive flex flex-col justify-between">
+              <div 
+                id={`product-card-${prod.id}`}
+                key={prod.id} 
+                className={`relative p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                  highlightedId === prod.id 
+                    ? 'border-cyan-500 ring-4 ring-cyan-500/50 shadow-xl bg-cyan-50/40 scale-[1.02] z-10' 
+                    : 'border-slate-200 bg-white hover:border-blue-400/50 shadow-2xs'
+                }`}
+              >
+                {highlightedId === prod.id && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-md flex items-center space-x-1 z-20 animate-pulse">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>Target Item</span>
+                  </div>
+                )}
                 <div>
                   <div className="flex items-start space-x-4 mb-3">
-                    <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-16 h-16 rounded-xl border border-slate-200 shrink-0 bg-slate-100" />
+                    <ProductImage src={prod.image} alt={prod.name} category={prod.category} className="w-12 h-12 rounded-lg border border-slate-200 shrink-0 bg-slate-100" />
                     <div className="flex-1 min-w-0">
                       <span className="text-[10px] font-mono text-slate-400 uppercase">{prod.sku} • {prod.category}</span>
                       <h3 className="text-sm font-bold text-slate-900 truncate">{prod.name}</h3>

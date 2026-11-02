@@ -149,7 +149,7 @@ export default function SalesHistory() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="p-4 sm:p-5 rounded-2xl card-light space-y-4">
+      <div className="p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-3">
         <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           {/* Search by Product Name, SKU, Category, or Invoice ID */}
           <div className="relative flex-1">
@@ -244,7 +244,7 @@ export default function SalesHistory() {
       {/* Filtered Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Revenue */}
-        <div className="p-4 rounded-2xl card-light space-y-1 border border-blue-100 bg-blue-50/20">
+        <div className="p-3 sm:p-3.5 rounded-xl card-light-interactive space-y-1 border border-blue-100 bg-blue-50/20">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase text-slate-400 font-bold">Filtered Revenue</span>
             <div className="p-2 rounded-xl bg-blue-100 text-blue-600"><TrendingUp className="w-4 h-4" /></div>
@@ -256,7 +256,7 @@ export default function SalesHistory() {
         </div>
 
         {/* Transactions / Orders */}
-        <div className="p-4 rounded-2xl card-light space-y-1">
+        <div className="p-3 sm:p-3.5 rounded-xl card-light-interactive space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase text-slate-400 font-bold">Total Orders</span>
             <div className="p-2 rounded-xl bg-purple-50 text-purple-600"><Receipt className="w-4 h-4" /></div>
@@ -268,7 +268,7 @@ export default function SalesHistory() {
         </div>
 
         {/* Units Sold */}
-        <div className="p-4 rounded-2xl card-light space-y-1">
+        <div className="p-3 sm:p-3.5 rounded-xl card-light-interactive space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase text-slate-400 font-bold">Units Sold</span>
             <div className="p-2 rounded-xl bg-amber-50 text-amber-600"><Package className="w-4 h-4" /></div>
@@ -280,7 +280,7 @@ export default function SalesHistory() {
         </div>
 
         {/* Avg Order Value */}
-        <div className="p-4 rounded-2xl card-light space-y-1">
+        <div className="p-3 sm:p-3.5 rounded-xl card-light-interactive space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase text-slate-400 font-bold">Avg Order Value</span>
             <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600"><DollarSign className="w-4 h-4" /></div>
@@ -296,7 +296,7 @@ export default function SalesHistory() {
       </div>
 
       {/* Grouped Orders Table */}
-      <div className="rounded-2xl card-light overflow-hidden shadow-xs">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Completed Checkout Orders</h3>

@@ -250,11 +250,20 @@ export const isSpeechSynthesisSupported = () => {
 }
 
 export const stopSpeaking = () => {
-  if (isSpeechSynthesisSupported()) {
-    try {
-      window.speechSynthesis.cancel()
-    } catch (e) {
-      console.warn('Speech synthesis cancel error:', e)
+  if (typeof window !== 'undefined') {
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel()
+      } catch (e) {
+        console.warn('Speech synthesis cancel error:', e)
+      }
+    }
+    if (window.__activeAudioStream) {
+      try {
+        window.__activeAudioStream.pause()
+        window.__activeAudioStream.currentTime = 0
+        window.__activeAudioStream = null
+      } catch (e) {}
     }
   }
 }
@@ -262,7 +271,7 @@ export const stopSpeaking = () => {
 export const cleanSpeechText = (text) => {
   if (!text) return ''
   return text
-    .replace(/[*_#`~>\[\]]/g, '')
+    .replace(/[*_#~>\[\]]/g, '')
     .replace(/\(http[s]?:\/\/\S+\)/g, '')
     .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
     .replace(/\s+/g, ' ')
@@ -270,22 +279,58 @@ export const cleanSpeechText = (text) => {
 }
 
 export const speakResponse = (text, options = {}) => {
-  if (!isSpeechSynthesisSupported()) return false
-
   stopSpeaking()
 
   const clean = cleanSpeechText(text)
   if (!clean) return false
 
-  const utterance = new SpeechSynthesisUtterance(clean)
   const config = getGeminiConfig()
   const lang = options.language || config.voiceLanguage || 'en-IN'
+  const cleanLang = lang.toLowerCase()
+  const prefix = cleanLang.slice(0, 2)
+
+  const voices = typeof window !== 'undefined' && window.speechSynthesis ? window.speechSynthesis.getVoices() : []
+  const hasRegionalVoice = voices.some(v => v.lang.toLowerCase().startsWith(prefix))
+
+  // For Telugu or any regional language when no OS native voice is installed:
+  // Stream high-fidelity native audio from /api/ai/tts so all native words are pronounced naturally!
+  if (['te', 'hi', 'ta', 'ml'].includes(prefix) && (!hasRegionalVoice || prefix === 'te')) {
+    try {
+      const backendBase = typeof window !== 'undefined' && (window.location.port === '5173' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://127.0.0.1:8000'
+        : ''
+      const audioUrl = `${backendBase}/api/ai/tts?text=${encodeURIComponent(clean.slice(0, 280))}&lang=${prefix}`
+      const audio = new Audio(audioUrl)
+      window.__activeAudioStream = audio
+      if (options.onStart) audio.onplay = options.onStart
+      if (options.onEnd) audio.onended = options.onEnd
+      if (options.onError) audio.onerror = options.onError
+      
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.warn('[AIRA TTS] Audio streaming fallback triggered browser speech synthesis:', err)
+          speakWithSpeechSynthesis(clean, lang, options, voices)
+        })
+      }
+      return true
+    } catch (e) {
+      console.warn('[AIRA TTS] Error starting audio stream:', e)
+    }
+  }
+
+  return speakWithSpeechSynthesis(clean, lang, options, voices)
+}
+
+function speakWithSpeechSynthesis(clean, lang, options, voices) {
+  if (!isSpeechSynthesisSupported()) return false
+
+  const utterance = new SpeechSynthesisUtterance(clean)
+  const config = getGeminiConfig()
   utterance.lang = lang
   utterance.rate = options.rate || config.speechRate || 1.0
   utterance.pitch = 1.0
 
-  // Smart Voice selection matching target language
-  const voices = window.speechSynthesis.getVoices()
   if (voices && voices.length > 0) {
     const cleanLang = lang.toLowerCase()
     const prefix = cleanLang.slice(0, 2)

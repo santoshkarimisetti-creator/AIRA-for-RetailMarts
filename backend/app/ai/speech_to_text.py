@@ -147,16 +147,16 @@ class LocalSpeechToTextEngine:
             # Select domain priming prompt matching target language
             prime_prompt = LANGUAGE_PROMPTS.get(clean_lang, DEFAULT_MULTILINGUAL_PROMPT)
 
-            # Transcribe with language constraint (if provided) and bilingual acoustic priming
+            # Transcribe with language constraint and gentle VAD (1000ms pause tolerance, 0.25 threshold)
             segments, info = model.transcribe(
                 target_path,
                 beam_size=5,
-                language=clean_lang if clean_lang in SUPPORTED_LANGUAGES else None,
+                language=clean_lang if (clean_lang and clean_lang in SUPPORTED_LANGUAGES) else None,
                 temperature=0.0,
                 condition_on_previous_text=False,
                 initial_prompt=prime_prompt,
                 vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=400, threshold=0.4)
+                vad_parameters=dict(min_silence_duration_ms=1000, threshold=0.25)
             )
 
             transcribed_segments = []
@@ -164,6 +164,27 @@ class LocalSpeechToTextEngine:
                 transcribed_segments.append(seg.text)
 
             full_text = " ".join(transcribed_segments).strip()
+
+            # Fallback check: if forced regional language produced empty text (e.g. user spoke English while Telugu was selected),
+            # retry with open auto-language detection
+            if not full_text and clean_lang and clean_lang != "en":
+                logger.info(f"Forced language '{clean_lang}' produced empty transcript. Retrying with auto-detection...")
+                retry_segments, retry_info = model.transcribe(
+                    target_path,
+                    beam_size=5,
+                    language=None,
+                    temperature=0.0,
+                    condition_on_previous_text=False,
+                    initial_prompt="AIRA retail supermarket store sales billing stock inventory price items orders",
+                    vad_filter=True,
+                    vad_parameters=dict(min_silence_duration_ms=1000, threshold=0.25)
+                )
+                retry_texts = [seg.text for seg in retry_segments]
+                retry_full = " ".join(retry_texts).strip()
+                if retry_full:
+                    full_text = retry_full
+                    info = retry_info
+
             detected_lang = clean_lang if clean_lang else info.language
             prob = round(float(info.language_probability), 3)
 
