@@ -7,7 +7,7 @@ import os
 import logging
 import threading
 logger = logging.getLogger("aira.api")
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date, timedelta, timezone
 import random
 from dotenv import load_dotenv
@@ -1086,6 +1086,26 @@ async def ai_voice_assistant(
 
 import urllib.request
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+
+def _chunk_text_for_tts(text_val: str, max_chars: int = 85) -> List[str]:
+    """Splits text into <= 85 character chunks at word boundaries for Google Translate TTS limits."""
+    words = text_val.split()
+    chunks = []
+    curr = []
+    curr_len = 0
+    for w in words:
+        if curr_len + len(w) + 1 > max_chars:
+            if curr:
+                chunks.append(" ".join(curr))
+            curr = [w]
+            curr_len = len(w)
+        else:
+            curr.append(w)
+            curr_len += len(w) + 1
+    if curr:
+        chunks.append(" ".join(curr))
+    return chunks
 
 @app.get("/api/ai/tts")
 @app.get("/api/tts")
@@ -1093,8 +1113,9 @@ def stream_multilingual_tts(text: str, lang: str = "en"):
     """
     Synthesizes and streams crystal-clear native speech audio for Telugu (te), Hindi (hi),
     Tamil (ta), Malayalam (ml), and English (en) without skipping regional characters or words.
+    Safely chunks long multilingual sentences to comply with Google TTS 100-char limits.
     """
-    clean_text = text.strip()[:300]
+    clean_text = text.strip()[:600]
     if not clean_text:
         return Response(content=b"", media_type="audio/mpeg")
 
@@ -1102,12 +1123,32 @@ def stream_multilingual_tts(text: str, lang: str = "en"):
     if lang_code not in ["te", "hi", "ta", "ml", "en"]:
         lang_code = "en"
 
-    tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(clean_text)}&tl={lang_code}&client=tw-ob"
-    req = urllib.request.Request(tts_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-    try:
+    chunks = _chunk_text_for_tts(clean_text, max_chars=85)
+    if not chunks:
+        return Response(content=b"", media_type="audio/mpeg")
+
+    def _fetch_single_chunk(item: Tuple[int, str]) -> Tuple[int, bytes]:
+        idx, c = item
+        tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={urllib.parse.quote(c)}&tl={lang_code}&client=tw-ob"
+        req = urllib.request.Request(tts_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
         with urllib.request.urlopen(req, timeout=5.0) as resp:
-            audio_bytes = resp.read()
-            return Response(content=audio_bytes, media_type="audio/mpeg")
+            return idx, resp.read()
+
+    try:
+        with ThreadPoolExecutor(max_workers=min(4, len(chunks))) as executor:
+            results = list(executor.map(_fetch_single_chunk, enumerate(chunks)))
+        results.sort(key=lambda x: x[0])
+        audio_bytes = b"".join([r[1] for r in results])
+        return Response(
+            content=audio_bytes,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Type": "audio/mpeg",
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=86400"
+            }
+        )
     except Exception as e:
         logger.warning(f"Error fetching TTS audio stream: {e}")
         return Response(content=b"", status_code=500)
