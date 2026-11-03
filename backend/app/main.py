@@ -1027,7 +1027,7 @@ async def ai_voice_assistant(
     db: Session = Depends(get_db)
 ):
     """
-    AIRA Local Speech-to-Text & Bilingual Voice Assistant
+    AIRA Local Speech-to-Text & Multilingual Voice Assistant
     Accepts recorded audio (.webm, .wav, .ogg, .mp3), transcribes with faster-whisper,
     identifies Telugu or English language, and responds using Local Ollama LLM + PostgreSQL.
     """
