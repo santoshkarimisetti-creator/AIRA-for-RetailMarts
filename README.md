@@ -1,17 +1,20 @@
-# 🚀 AIRA — Autonomous Intelligent Retail Operating System
+# 🚀 AIRA — Artificial Intelligence for Retail Analytics
 
-AIRA is a full-stack, enterprise-grade AI retail management operating system and command center. It bridges physical store operations with real-time neural inventory intelligence, live PostgreSQL database telemetry, offline local LLM SQL synthesis, 3D interactive store mapping, express POS barcode checkout, and multilingual Indian regional voice assistance.
+AIRA (**Artificial Intelligence for Retail Analytics**) is an intelligent full-stack retail management and analytics platform engineered for supermarkets, grocery stores, and independent merchants. It bridges daily store operations with real-time PostgreSQL sales telemetry, offline local LLM Text-to-SQL query generation, responsive inventory management with targeted reorder navigation, express POS barcode checkout, and multilingual Indian regional voice assistance.
+
+> [!IMPORTANT]
+> **Project Scope & Terminology Notice**: The official title of this project is **Artificial Intelligence for Retail Analytics (AIRA)**. All autonomous retail capabilities (such as automated supplier reordering, autonomous multi-agent replenishment, and automated shelf actuation) are strictly designated under **[Future Scope](#-future-scope--roadmap-autonomous-retail-operations)**. They are not active in the current implementation, which maintains human-in-the-loop control for store managers.
 
 ---
 
-## 🌟 Architecture & Highlights
+## 🌟 Architecture & High-Level Flow
 
 ```
                           ┌──────────────────────────────────────────────┐
                           │         React 19 + Vite 8 Desktop/POS        │
-                          │   (Tailwind CSS, Three.js 3D, Web Audio API) │
+                          │   (Tailwind CSS, Lucide, Recharts, Three.js) │
                           └──────────────────────┬───────────────────────┘
-                                                 │ REST API & WebSocket
+                                                 │ REST API (JSON / Audio)
                                                  ▼
                           ┌──────────────────────────────────────────────┐
                           │            FastAPI Python Backend            │
@@ -22,45 +25,49 @@ AIRA is a full-stack, enterprise-grade AI retail management operating system and
             ▼                                  ▼    ▼                                  ▼
 ┌─────────────────────────┐  ┌─────────────────────────────────┐  ┌───────────────────────────────────┐
 │  PostgreSQL Database    │  │ Local GPU STT (faster-whisper)  │  │ Local Ollama LLM (gemma3:4b)      │
-│  (100 Products, 13k+    │  │ + Concurrent Chunked TTS Audio  │  │ Locked in VRAM during server run; │
+│  (100 Products, 13k+    │  │ + Concurrent Chunked TTS Audio  │  │ Pre-warmed & locked in GPU VRAM;  │
 │   Live Sales Records)   │  │ (Telugu, Hindi, Tamil, ML, EN)  │  │ Auto-unloaded on server shutdown  │
 └─────────────────────────┘  └─────────────────────────────────┘  └───────────────────────────────────┘
 ```
 
+---
+
+## 🧩 Key Implemented Features
+
 ### 1. 🧠 Intelligent Dual AI Assistant
 * **Instant Multilingual Rule Assistant (< 20ms response time)**:
-  Handles **15 strictly grouped question patterns** across **4 domains** in **Telugu (తెలుగు), Hindi (हिन्दी), Tamil (தமிழ்), Malayalam (മലയാളം), and English**:
-  * **Profits**: Most profitable item, lowest profit/margin items, best margin products.
-  * **Sales**: Today's sales & orders, total store revenue, top-selling products, least-sold / low sales items.
-  * **Prices**: Specific product price checks (*"price of ghee"*, *"నెయ్యి ధర ఎంత?"*), highest priced item, cheapest item.
-  * **Stocks**: Specific product stock inquiries (*"stock of milk"*), low-stock warnings, out-of-stock items, surplus stock, and live restock/sale operations.
+  Handles **15 strictly grouped question patterns** across **4 core domains** in **Telugu (తెలుగు), Hindi (हिन्दी), Tamil (தமிழ்), Malayalam (മലയാളം), and English**:
+  * **Profits**: Most profitable product, lowest profit/margin products, highest margin items.
+  * **Sales**: Today's sales & orders, total store revenue, top-selling items, least-sold / low sales products.
+  * **Prices**: Specific product price inquiries (*"price of ghee"*, *"నెయ్యి ధర ఎంత?"*), highest priced item, cheapest item in store.
+  * **Stocks**: Specific product stock inquiries (*"stock of milk"*), low-stock warnings, out-of-stock items, surplus stock, and live restock/sale adjustments.
 * **15 Dynamic Quick-Suggestion Pills**:
-  The Floating Assistant drawer features a horizontally scrollable chip deck populated with all 15 partitioned questions dynamically localized into the user's selected language.
-* **Local Ollama Intelligence (`gemma3:4b`)**:
-  Un-templated, complex, or open-ended analytical questions are routed to local Ollama to safely generate PostgreSQL SELECT queries and synthesize conversational responses strictly in the user's language.
+  The Floating Assistant drawer features a horizontally scrollable chip deck populated with all 15 partitioned questions dynamically translated into the store manager's selected language.
+* **Offline Local Ollama Intelligence (`gemma3:4b`)**:
+  Un-templated or open-ended analytical questions are routed to a local Ollama model to safely generate PostgreSQL SELECT queries and synthesize conversational responses strictly in the user's language without cloud dependency.
 
-### 2. ⚡ Autonomous Ollama GPU Lifecycle (Zero VRAM Waste)
-* **Warm on Backend Startup**: As soon as the FastAPI server starts, it preloads `gemma3:4b` into GPU VRAM with indefinite `keep_alive: -1`.
-* **Zero Idle Timeout**: A background heartbeat thread continuously maintains the active model state every 2 minutes so it never becomes idle or drops out while the backend is active.
-* **Auto-Eviction on Shutdown**: When the FastAPI server stops (`Ctrl+C`), the lifespan handler immediately sends `keep_alive: 0`, freeing 100% of GPU VRAM.
+### 2. ⚡ Automated Ollama GPU Lifespan Management (Zero VRAM Waste)
+* **Warmup on Backend Startup**: As soon as the FastAPI server starts, it preloads `gemma3:4b` into GPU VRAM with `keep_alive: -1`.
+* **Zero Idle Timeout**: A background heartbeat thread continuously pings the active model state every 2 minutes so it remains warm and never drops out while the backend is active.
+* **Clean Eviction on Shutdown**: When the FastAPI server stops (`Ctrl+C`), the lifespan handler sends `keep_alive: 0`, freeing 100% of GPU VRAM immediately.
 
 ### 3. 🎙️ Multilingual Speech Recognition & Concurrent Neural TTS
-* **GPU-Accelerated STT (`faster-whisper`)**: Real-time voice transcription in ~0.8s on CUDA without timeouts.
+* **GPU-Accelerated STT (`faster-whisper`)**: Real-time voice transcription in ~0.8s on CUDA with fallback to native browser Web Speech API.
 * **Native Browser STT**: Web Speech recognition streaming regional language tags (`te-IN`, `hi-IN`, `ta-IN`, `ml-IN`, `en-IN`).
 * **Concurrent Chunked Neural TTS Streamer (`/api/ai/tts`)**:
-  Intelligently segments text at word boundaries ($\le 85$ chars) and fetches audio streams concurrently via `ThreadPoolExecutor` to eliminate Google TTS length limits. Ensures every single Telugu, Hindi, Tamil, and Malayalam word is pronounced with authentic native inflection—no skipped words, no missed characters.
+  Intelligently segments responses at natural word boundaries ($\le 85$ chars) and fetches audio streams concurrently via `ThreadPoolExecutor` to eliminate length constraints. Ensures every single Telugu, Hindi, Tamil, and Malayalam word is pronounced with authentic native inflection without dropped syllables or character skipping.
 
 ### 4. 🎯 One-Click Targeted Inventory Restock Navigation
 * Clicking **Reorder** or **Restock** from AI Chat, Alerts, or AI Insights immediately redirects to `/app/inventory?highlight={productId}`.
-* Automatically resets filters, smoothly scrolls the target card directly into the **center of the screen**, and highlights it with a glowing cyan selection ring and an animated **"Target Item"** badge.
+* Automatically resets filters, smoothly scrolls the target card directly into the **center of the screen**, and highlights it with a glowing cyan selection ring and an animated **"Target Item"** badge for quick verification.
 
 ### 5. 🛒 Express Supermarket POS Counter
-* Camera barcode scanner (EAN-13, EAN-8, UPC, Code 128, QR Code) with horizontal/vertical orientation controls.
-* USB/Bluetooth hardware barcode gun support.
-* Dynamic UPI QR generation, cash change calculator, and supermarket receipt printing.
+* Camera barcode scanner (`html5-qrcode`) supporting EAN-13, EAN-8, UPC, Code 128, and QR Code with orientation controls.
+* USB and Bluetooth hardware barcode gun scanner support.
+* Dynamic UPI QR code modal, cash change calculator, and instant supermarket receipt printing.
 
-### 6. 🏬 3D Store Digital Twin
-* Interactive Three.js isometric 3D physical shelf mapping displaying live departmental stock fill percentages, critical shelf levels, and restock prompts.
+### 6. 🏬 3D Store Visualizer & Floor Overview
+* Interactive Three.js isometric 3D department view visualizing store departmental stock levels, low-stock warnings, and section status embedded within the Dashboard and Store Health views.
 
 ---
 
@@ -84,11 +91,30 @@ AIRA is a full-stack, enterprise-grade AI retail management operating system and
 | | 14 | Plenty / Surplus Stock | *"Items with plenty of stock"* | *"ఎక్కువ స్టాక్ ఉన్న వస్తువులు ఏవి?"* |
 | | 15 | Live Inventory Action | *"Restock 20 units of ghee"* | *"20 యూనిట్ల నెయ్యి యాడ్ చేయండి"* |
 
-*(Also localized into Hindi, Tamil, and Malayalam in the assistant).*
+*(All questions are also localized into Hindi, Tamil, and Malayalam in the assistant).*
 
 ---
 
-## 🛠️ Step-by-Step Setup Guide (For New Users)
+## 🔮 Future Scope & Roadmap (Autonomous Retail Operations)
+
+The following advanced capabilities represent the planned research and development evolution of the AIRA platform:
+
+1. **Autonomous Multi-Agent Replenishment**:
+   Fully autonomous AI agents that interface directly with supplier APIs / B2B EDI networks to trigger purchase orders automatically when safety thresholds are breached, removing human reorder latency.
+2. **Computer Vision Shelf Overhead Tracking**:
+   Ceiling-mounted smart edge camera feeds with object detection and customer spatial tracking for automated queue-less walkout checkout and real-time empty shelf alerts.
+3. **Smart IoT Shelf Weight Sensors**:
+   Hardware weight sensors deployed under physical store shelves to continuously detect SKU count decrements and cross-verify POS inventory telemetry.
+4. **Autonomous Vendor Negotiation Bots**:
+   AI agents communicating directly with FMCG vendors via WhatsApp Business API / automated email to negotiate dynamic bulk discount tiers.
+5. **Reinforcement Learning Dynamic Markdown Engine**:
+   Real-time algorithmic price adjustments for perishable items based on approaching expiry dates, current footfall velocity, and margin preservation targets.
+6. **Multi-Branch Cross-Store Mesh**:
+   Decentralized synchronization across multiple supermarket chain outlets for automated inter-branch stock balancing.
+
+---
+
+## 🛠️ Step-by-Step Setup Guide
 
 ### Prerequisites
 Before starting, ensure you have the following installed:
@@ -122,7 +148,7 @@ cd AIRA
    ```bash
    ollama serve
    ```
-2. Pull the lightweight, high-performance retail model:
+2. Pull the lightweight retail model:
    ```bash
    ollama pull gemma3:4b
    ```

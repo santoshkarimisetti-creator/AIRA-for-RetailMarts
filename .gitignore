@@ -77,3 +77,7 @@ LOCAL_AI_INTEGRATION_DETAILS.md
 check_all_pages.py
 download_ollama.py
 install_ollama.ps1
+
+# Architecture diagrams & local visual assets (kept in root, not pushed)
+system_architecture.png
+system_architecture.*
